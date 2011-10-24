@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+from distutils.core import setup
+
+with open('README') as f:
+    long_description = f.read()
+
+setup(
+    name='rpqueue',
+    version='.1',
+    description='Use Redis as a priority-enabled and time-based task queue.',
+    author='Josiah Carlson',
+    author_email='josiah.carlson@gmail.com',
+    url='https://github.com/josiahcarlson/rpqueue',
+    packages=['rpqueue', 'tests'],
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: GNU General Public License (GPL)',
+        'Programming Language :: Python',
+    ],
+    license='GNU GPL v2.0',
+    long_description=long_description,
+    data_files=['Makefile'],
+)
