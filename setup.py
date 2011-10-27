@@ -20,5 +20,4 @@ setup(
     ],
     license='GNU GPL v2.0',
     long_description=long_description,
-    data_files=['Makefile'],
 )
