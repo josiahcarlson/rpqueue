@@ -3,20 +3,21 @@
 rpqueue (Redis Priority Queue)
 
 Written July 5, 2011 by Josiah Carlson
-Released under the GNU GPL v2
-available: http://www.gnu.org/licenses/gpl-2.0.html
+Released under the GNU LGPL v2.1
+available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
 Other licenses may be available upon request.
 '''
 
 import datetime
+import itertools
 try:
     import simplejson as json
 except ImportError:
     import json
+import logging
 import multiprocessing
 import os
-import random
 import signal
 import sys
 import time
@@ -47,31 +48,23 @@ REDIS_CONNECTION_SETTINGS = {}
 POOL = None
 PID = None
 
-def _log(message, *args):
-    '''
-    Logs messages to stderr.
-    '''
-    try:
-        message = message % args
-    except TypeError as err:
-        print >>sys.stderr, repr(err)
-    print >>sys.stderr, message
-
-def log(message, *args):
-    return
+logging.basicConfig()
+log_handler = logging.root
 
 def _assert(condition, message, *args):
     if not condition:
         raise ValueError(message%args)
 
 def set_redis_connection_settings(host='localhost', port=6379, db=0,
-    password=None, socket_timeout=30):#, unix_socket_path=None):
+    password=None, socket_timeout=30, unix_socket_path=None):
     '''
     Sets the global redis connection settings for the queue. If not called
     before use, will connect to localhost:6379 with no password and db 0.
     '''
     global REDIS_CONNECTION_SETTINGS, POOL
     REDIS_CONNECTION_SETTINGS = locals()
+    if redis.__version__ < '2.4':
+        REDIS_CONNECTION_SETTINGS.pop('unix_socket_path', None)
     POOL = threading.local()
 
 def get_connection():
@@ -104,7 +97,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
         pipeline.zscore(qkey, taskid)
         last, current = pipeline.execute()
         if current or (last and time.time()-last < REENTRY_RETRY):
-            log("SKIPPED: %s %s", taskid, fname)
+            log_handler.debug("SKIPPED: %s %s", taskid, fname)
             return taskid
 
     message = json.dumps([taskid, fname, args, kwargs])
@@ -117,9 +110,9 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     pipeline.hincrby(SEEN_KEY, queue, 1)
     pipeline.execute()
     if delay:
-        log("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts))
+        log_handler.debug("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts))
     else:
-        log("SENT: %s %s", taskid, fname)
+        log_handler.debug("SENT: %s %s", taskid, fname)
     # return the taskid, to determine whether the task has been started or not
     return taskid
 
@@ -140,8 +133,10 @@ def _get_work(conn, queues=None, timeout=1):
     iqueues = [MESSAGES_KEY + q for q in queues]
     queues = [QUEUE_KEY + q for q in queues]
     to_end = time.time() + timeout
+    first = True
     i = 0
-    while time.time() <= to_end:
+    passes = 1
+    while time.time() <= to_end or first:
         # look for a work item
         item = conn.zrange(queues[i], 0, 0, withscores=True)
         if not item or item[0][1] > time.time():
@@ -176,7 +171,9 @@ def _get_work(conn, queues=None, timeout=1):
             # we tried all of the queues and didn't find any work, wait for a
             # bit and try again
             i = 0
-            time.sleep(timeout / 100.0)
+            first = False
+            time.sleep(max(min(passes * timeout / 100.0, timeout), .05))
+        passes += 1
     return None
 
 class _Task(object):
@@ -222,7 +219,7 @@ class _Task(object):
         introspection upon potential exception.
         '''
         if not taskid and not nowarn:
-            log("You probably intended to call the function: %s, you are half-way there", self.name)
+            log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
     def next(self, now=None):
         if self.delay is not None:
@@ -259,7 +256,7 @@ class _Task(object):
             kwargs['delay'] = self.retry_delay
         return self.execute(*args, **kwargs)
     def __repr__(self):
-        return "<Task function=%s>"%(self.task.name,)
+        return "<Task function=%s>"%(self.name,)
 
 class _ExecutingTask(object):
     '''
@@ -433,34 +430,71 @@ if CronTab.__slots__:
                          attempts=attempts, retry_delay=retry_delay)
         return decorate
 
-def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thread=1):
+PREVIOUS = None
+
+def quit_on_signal(signum, frame):
+    SHOULD_QUIT[0] = 1
+
+def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thread=1, module=None):
     '''
     Will execute tasks from the (optionally) provided queues until the first
-    value in the global SHOULD_QUIT is considered true.
+    value in the global SHOULD_QUIT is considered false.
     '''
+    signal.signal(signal.SIGUSR1, quit_on_signal)
+    log_handler.setLevel(logging.DEBUG)
+    sp = []
+    def _signal_subprocesses(signum, frame):
+        for pp in sp:
+            if pp.is_alive():
+                # this won't actually kill the other process, just print it's stack.
+                os.kill(pp.pid, signal.SIGUSR2)
+        _print_stackframes_on_signal(signum, frame)
+    signal.signal(signal.SIGUSR2, _signal_subprocesses)
+
     threads_per_process = max(threads_per_process, 1)
     processes = max(processes, 1)
-    sp = []
-    st = []
-    for p in xrange(processes-1):
-        pp = multiprocessing.Process(target=execute_tasks, args=(queues, threads_per_process, 1))
+    log_handler.info("Starting %i subprocesses", processes)
+    for p in xrange(processes):
+        pp = multiprocessing.Process(target=execute_task_threads, args=(queues, threads_per_process, 1, module))
         pp.daemon = True
         pp.start()
         sp.append(pp)
-    for t in xrange(threads_per_process):
+    while not SHOULD_QUIT[0]:
+        time.sleep(.1)
+
+    log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
+    # wait some time for processes to die...
+    total = threads_per_process * wait_per_thread
+    while total > 0 and sp:
+        t = time.time()
+        sp[0].join(min(total, 1))
+        if sp[0].is_alive():
+            sp.append(sp.pop(0))
+        else:
+            sp.pop(0)
+        total -= time.time() - t
+    # at this point we have waited long enough, they will die when we die.
+    log_handler.info("Letting %i processes die", len(sp))
+
+def _print_stackframes_on_signal(signum, frame):
+    pid = os.getpid()
+    for tid, frame in sys._current_frames().items():
+        log_handler.critical('PID: %s THREAD: %s\n%s' % (pid, tid, ''.join(traceback.format_stack(frame))))
+
+def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None):
+    signal.signal(signal.SIGUSR1, quit_on_signal)
+    signal.signal(signal.SIGUSR2, _print_stackframes_on_signal)
+    if module:
+        __import__(module)
+    st = []
+    log_handler.info("PID %i executing tasks in %i threads", os.getpid(), threads)
+    for t in xrange(threads-1):
         tt = threading.Thread(target=_execute_tasks, args=(queues,))
         tt.daemon = True
         tt.start()
         st.append(tt)
-    _execute_tasks()
-    for t in st:
-        t.join(wait_per)
-    if sp:
-        sp[0].join(wait_per)
-    # We have waited at least wait_per_thread * threads_per_process, which is
-    # all we were supposed to wait. Because every sub-process/thread is
-    # daemonic, falling off here will cause exit for any survivors.
-    
+    _execute_tasks(queues)
+
 def _execute_tasks(queues=None):
     '''
     Internal implementation detail to execute multiple tasks.
@@ -480,15 +514,15 @@ def _execute_task(work):
     try:
         taskid, fname, args, kwargs, scheduled = work
     except ValueError as err:
-        log(err)
+        log_handler.exception(err)
         return
 
     now = datetime.datetime.utcnow()
     jitter = now - datetime.datetime.utcfromtimestamp(scheduled)
-    log("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
+    log_handler.debug("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
 
     if fname not in REGISTRY:
-        log("ERROR: Missing function %s in registry", fname)
+        log_handler.debug("ERROR: Missing function %s in registry", fname)
         return
 
     to_execute = REGISTRY[fname](taskid, True)
@@ -498,9 +532,9 @@ def _execute_task(work):
     except (KeyboardInterrupt, SystemExit):
         raise
     except:
-        log("ERROR: Exception in task %r: %s", to_execute, traceback.format_exc().rstrip())
+        log_handler.exception("ERROR: Exception in task %r: %s", to_execute, traceback.format_exc().rstrip())
     else:
-        log("SUCCESS: Task completed: %s %s", taskid, fname)
+        log_handler.debug("SUCCESS: Task completed: %s %s", taskid, fname)
 
 def known_queues(conn=None):
     '''
@@ -538,44 +572,153 @@ def clear_queue(queue, conn=None, delete=False):
         pipeline.srem(QUEUES_KNOWN, queue)
     return pipeline.execute()[0]
 
+_BAD_ITEM = (None, '<unknown>', '<unknown>', '<unknown>')
+_DONE_ITEM = (None, '<done>', '<done>', '<done>')
+def get_page(queue, page, per_page=50, conn=None):
+    '''
+    Get information about a sequence of tasks in the queue.
+    '''
+    conn = conn or get_connection()
+    page -= 1
+    start = page * per_page
+    end = (page + 1) * per_page - 1
+    tasks = conn.zrange(QUEUE_KEY + queue, start, end, withscores=True)
+    messages = conn.hmget(MESSAGES_KEY + queue, zip(*tasks)[0]) if tasks else []
+    out = []
+    for (tid, ts), msg in itertools.izip(tasks, messages):
+        try:
+            if msg:
+                msg = json.loads(msg)
+            else:
+                msg = _DONE_ITEM
+        except:
+            msg = _BAD_ITEM
+        out.append([tid, ts, msg[1], msg[2], msg[3]])
+    return out
+
+def delete_item(queue, taskid, conn=None):
+    pipeline = (conn or get_connection()).pipeline(True)
+    pipeline.hdel(MESSAGES_KEY + queue, taskid)
+    pipeline.zrem(RQUEUE_KEY + queue, taskid)
+    pipeline.zrem(QUEUE_KEY + queue, taskid)
+    return any(pipeline.execute())
+
+def print_rows(rows, use_header):
+    if not rows:
+        return
+    if use_header:
+        ml = [max(len(str(i)) for i in s) for s in zip(*rows)]
+        rows.insert(1, [m*'-' for m in ml])
+        fmt = '  '.join("%%-%is"%m for m in ml)
+    else:
+        fmt = '  '.join('%s' for i in xrange(len(rows[0])))
+    for row in rows:
+        print fmt%tuple(row)
+
+from optparse import OptionGroup, OptionParser
+parser = OptionParser(usage='''
+    %prog [connection options]
+        -> general queue information
+
+    %prog [connection options] --queue <queue> [read options]
+        -> more specific information about a queue and it's tasks
+
+    %prog [connection options] --queue <queue> --clear
+        -> clear out a queue
+
+    %prog [connection options] --queue <queue> --delete <itemid>
+        -> delete a specific item from a given queue''')
+
+cgroup = OptionGroup(parser, "Connection Options")
+cgroup.add_option('--host', dest='host', action='store', default='localhost',
+    help='The host that Redis is running on')
+cgroup.add_option('--port', dest='port', action='store', type='int', default=6379,
+    help='The port that Redis is listening on')
+cgroup.add_option('--db', dest='db', action='store', type='int', default=0,
+    help='The database that the queues are in')
+cgroup.add_option('--password', dest='passwd', action='store', default=None,
+    help='The password to connect to Redis with')
+cgroup.add_option('--pwprompt', dest='pwprompt', action='store_true', default=False,
+    help='Will prompt the user for a password before trying to connect')
+if redis.__version__ >= '2.4':
+    cgroup.add_option('--unixpath', dest='unixpath', action='store', default=None,
+        help='The unix path to connect to Redis with (use unix path OR host/port, not both')
+cgroup.add_option('--timeout', dest='timeout', action='store', type='int', default=30,
+    help='How long to wait for a connection or command to succeed or fail')
+
 if __name__ == '__main__':
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option('--clear', dest='queue', action='store', default=None,
-        help='Remove all items from the given queue.')
-    parser.add_option('--host', dest='host', action='store', default='localhost',
-        help='The host that Redis is running on.')
-    parser.add_option('--port', dest='port', action='store', type='int', default=6379,
-        help='The port that Redis is listening on.')
-    parser.add_option('--db', dest='db', action='store', type='int', default=0,
-        help='The database that the queues are in.')
-    parser.add_option('--password', dest='password', action='store', default=None,
-        help='The password to connect to Redis with.')
-    parser.add_option('--pwprompt', dest='pwprompt', action='store_true', default=False,
-        help='Will prompt the user for a password before trying to connect.')
-    ## parser.add_option('--unixpath', dest='unixpath', action='store', default=None,
-        ## help='The unix path to connect to Redis with (use unix path OR host/port, not both.')
-    parser.add_option('--timeout', dest='timeout', action='store', type='int', default=30,
-        help='How long to wait for a connection or command to succeed or fail.')
+
+    vgroup = OptionGroup(parser, "Read Options")
+    vgroup.add_option('--queue', dest='queue', action='store',
+        help='Which queue to operate on')
+    vgroup.add_option('--page', dest='page', action='store', type='int', default=0,
+        help='What page of items to show with --queue')
+    vgroup.add_option('--skip-header', dest='skip', action='store_true', default=False,
+        help='Skip header and auto-spacing when showing queue/item information')
+    vgroup.add_option('--show-args', dest='sargs', action='store_true', default=False,
+        help='Pass to show the args/kwargs of queue items displayed in the queue')
+
+    dgroup = OptionGroup(parser, "Delete Options")
+    dgroup.add_option('--clear', dest='clear', action='store_true', default=False,
+        help='Remove all items from the given queue')
+    dgroup.add_option('--delete', dest='delete', action='store', default=None,
+        help='The item id of the queue item that you want to delete')
+
+    # this piece is not quite done yet, so it is commented for now
+    ## igroup = OptionGroup(parser, "Info Options (requires bottle.py)")
+    ## igroup.add_option('--info', dest='info', action='store_true', default=False,
+        ## help='Run an informational web server on the provided lhost and lport')
+    ## igroup.add_option('--lhost', dest='lhost', action='store', default='localhost',
+        ## help='The host/ip that the informational web server should listen on')
+    ## igroup.add_option('--lport', dest='lport', action='store', type='int', default=6300,
+        ## help='The port that the informational web server should listen on')
+
+    parser.add_option_group(cgroup)
+    parser.add_option_group(vgroup)
+    parser.add_option_group(dgroup)
     options, args = parser.parse_args()
     if options.pwprompt:
-        if options.password:
+        if options.passwd:
             print "You must pass either --password OR --pwprompt not both."
-            raise SystemExit
+            sys.exit(1)
         import getpass
-        options.password = getpass.getpass()
+        options.passwd = getpass.getpass()
 
     set_redis_connection_settings(options.host, options.port, options.db,
-        options.password, options.timeout)#, options.unixpath)
+        options.passwd, options.timeout, getattr(options, 'unixpath', None))
 
-    if options.queue:
+    if (options.clear or options.page or options.delete) and not options.queue:
+        print "You must provide '--queue <queuename>' with that command"
+        sys.exit(1)
+    if (bool(options.clear) + bool(options.page) + bool(options.delete)) > 1:
+        print "You can choose at most one of --clear, --page, or --delete"
+        sys.exit(1)
+
+    if options.clear:
         items = clear_queue(options.queue)
         print "Queue %r cleared of %i items."%(options.queue, items)
+    elif options.queue and not options.delete:
+        items = get_page(options.queue, options.page)
+        out = []
+        if not options.skip:
+            out.append(['name', 'scheduled', 'taskid'])
+            if options.sargs:
+                out[0].extend(['args', 'kwargs'])
+
+        for tid, ts, name, args, kwargs in items:
+            out.append([name, datetime.datetime.utcfromtimestamp(ts).isoformat(), tid])
+            if options.sargs:
+                out[-1].extend([args, kwargs])
+
+        print_rows(out, not options.skip)
+    elif options.delete:
+        if delete_item(options.queue, options.delete):
+            print "Deleted item:", options.delete
+        else:
+            print "Item not found"
+            sys.exit(1)
     else:
         known = queue_sizes()
-        known.insert(0, ('Queues', 'Sizes', 'Seen'))
-        ml = [max(len(str(i)) for i in s) for s in zip(*known)]
-        known.insert(1, [m*'-' for m in ml])
-        fmt = '  '.join("%%-%is"%m for m in ml)
-        for name, size, seen in known:
-            print fmt%(name, size, seen)
+        if not options.skip:
+            known.insert(0, ('Queue', 'Size', 'Seen'))
+        print_rows(known, not options.skip)

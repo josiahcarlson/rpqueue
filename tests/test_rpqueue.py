@@ -1,12 +1,10 @@
 
 import multiprocessing
-import threading
 import time
 import unittest
 
 import rpqueue
-olog = rpqueue._log
-rpqueue.log = olog
+rpqueue.log_handler.setLevel(rpqueue.logging.CRITICAL)
 
 queue = 'TEST_QUEUE'
 
@@ -57,7 +55,6 @@ class TestRPQueue(unittest.TestCase):
         saw[0] = 0
         rpqueue.clear_queue(queue)
         rpqueue.SHOULD_QUIT[0] = 0
-        rpqueue.log = lambda *args, **kwargs: None
         self.t = _start_task_processor()
 
     def tearDown(self):
@@ -132,13 +129,15 @@ class TestRPQueue(unittest.TestCase):
         dt = time.time() - t
         print "\n%.1f tasks/second injection/running"%(scale/dt,)
 
+        scale /= 10
+
         saw[0] = 0
         t = time.time()
         speed2.execute(_attempts=scale)
         while saw[0] < scale:
             time.sleep(.1)
         dt2 = time.time() -t
-        print "%.1f tasks/second retries"%(scale/dt2,)
+        print "%.1f tasks/second sequential retries"%(scale/dt2,)
 
 if __name__ == '__main__':
     unittest.main()
