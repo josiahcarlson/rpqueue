@@ -124,30 +124,32 @@ def _get_work(conn, queues=None, timeout=1):
     # find the set of queues for processing
     pipeline = conn.pipeline(True)
     if not queues:
-        queues = conn.smembers(QUEUES_KNOWN)
-    queues = list(sorted(queues))
+        queues = list(sorted(conn.smembers(QUEUES_KNOWN)))
     if not queues:
         time.sleep(timeout)
         return
     # cache the full strings
     iqueues = [MESSAGES_KEY + q for q in queues]
     queues = [QUEUE_KEY + q for q in queues]
+
     to_end = time.time() + timeout
     first = True
     i = 0
     passes = 1
     while time.time() <= to_end or first:
+        iqueue = iqueues[i]
+        qkey = queues[i]
         # look for a work item
-        item = conn.zrange(queues[i], 0, 0, withscores=True)
+        item = conn.zrange(qkey, 0, 0, withscores=True)
         if not item or item[0][1] > time.time():
             # try the next queue
             i += 1
         else:
             # we've got a potential work item
             item_id, scheduled = item[0]
-            pipeline.hget(iqueues[i], item_id)
-            pipeline.hdel(iqueues[i], item_id)
-            pipeline.zrem(queues[i], item_id)
+            pipeline.hget(iqueue, item_id)
+            pipeline.hdel(iqueue, item_id)
+            pipeline.zrem(qkey, item_id)
             message, _ignore, should_use = pipeline.execute()
             if should_use:
                 # return the work item
@@ -159,10 +161,10 @@ def _get_work(conn, queues=None, timeout=1):
                     delay = REGISTRY[item_id].next(sch)
                     if delay is not None:
                         # it can be scheduled again, do it
-                        pipeline.zadd(queues[i], item_id, sch + delay)
-                    # re-add the call arguments
-                    pipeline.hset(iqueues[i], item_id, message)
-                    pipeline.execute()
+                        pipeline.zadd(qkey, item_id, sch + delay)
+                        # re-add the call arguments
+                        pipeline.hset(iqueue, item_id, message)
+                        pipeline.execute()
                 return work
             # the item was already taken by another processor, try again
             # immediately
@@ -222,12 +224,9 @@ class _Task(object):
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
     def next(self, now=None):
-        if self.delay is not None:
-            if isinstance(self.delay, CronTab):
-                return self.delay.next(now)
-            else:
-                return self.delay
-        return 0
+        if isinstance(self.delay, CronTab):
+            return self.delay.next(now)
+        return self.delay
     def execute(self, *args, **kwargs):
         '''
         Invoke this task with the given arguments inside a task processor.
