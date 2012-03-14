@@ -83,7 +83,7 @@ Additional features
 Support for cron_tasks using a crontab-like syntax requires the Python crontab
 module: http://pypi.python.org/pypi/crontab/ , allowing for::
 
-    @cron_task('* 5 tue * *')
+    @cron_task('0 5 tue * *')
     def function2():
         # Will be executed every Tuesday at 5AM.
         pass

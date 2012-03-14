@@ -31,13 +31,17 @@ except ImportError:
     class CronTab(object):
         __slots__ = ()
 
+
 import redis
 
 QUEUES_KNOWN = 'queues:all'
 QUEUE_KEY = 'queue:'
+NOW_KEY = 'nqueue:'
+PNOW_KEY = 'pqueue:'
 RQUEUE_KEY = 'rqueue:'
 MESSAGES_KEY = 'messages:'
 SEEN_KEY = 'seen:'
+LOCK_KEY = 'locks:'
 REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
@@ -85,6 +89,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     pipeline = conn.pipeline(True)
     # prepare the message
     qkey = QUEUE_KEY + queue
+    nkey = NOW_KEY + queue
     rqkey = RQUEUE_KEY + queue
     ikey = MESSAGES_KEY + queue
 
@@ -92,7 +97,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     taskid = taskid or str(uuid.uuid4())
     ts = time.time() + delay
 
-    if taskid and taskid == fname and delay > 0:
+    if taskid == fname and delay > 0:
         pipeline.zscore(rqkey, taskid)
         pipeline.zscore(qkey, taskid)
         last, current = pipeline.execute()
@@ -100,12 +105,15 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
             log_handler.debug("SKIPPED: %s %s", taskid, fname)
             return taskid
 
-    message = json.dumps([taskid, fname, args, kwargs])
+    message = json.dumps([taskid, fname, args, kwargs, time.time() + delay])
     # enqueue it
     pipeline.hset(ikey, taskid, message)
     if taskid == fname:
         pipeline.zadd(rqkey, taskid, ts)
-    pipeline.zadd(qkey, taskid, ts)
+    if delay > 0:
+        pipeline.zadd(qkey, taskid, ts)
+    else:
+        pipeline.rpush(nkey, taskid)
     pipeline.sadd(QUEUES_KNOWN, queue)
     pipeline.hincrby(SEEN_KEY, queue, 1)
     pipeline.execute()
@@ -119,7 +127,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
 def _get_work(conn, queues=None, timeout=1):
     '''
     Internal implementation detail of call queue removal. You shouldn't need
-    to call this function directly
+    to call this function directly.
     '''
     # find the set of queues for processing
     pipeline = conn.pipeline(True)
@@ -129,15 +137,83 @@ def _get_work(conn, queues=None, timeout=1):
         time.sleep(timeout)
         return
     # cache the full strings
-    iqueues = [MESSAGES_KEY + q for q in queues]
+    _queues = []
+    for q in queues:
+        _queues.append(PNOW_KEY + q)
+        _queues.append(NOW_KEY + q)
+    queues = _queues
+
+    to_end = time.time() + max(int(timeout), 0) + .01
+    while time.time() < to_end and not SHOULD_QUIT[0]:
+        remain = to_end - time.time()
+        iremain = int(remain)
+        if iremain < 1:
+            # If we have less than a second left, exploit MULTI/EXEC blocking
+            # pop behavior to get a timeout of 0.
+            pipeline.blpop(queues, 1)
+            item = pipeline.execute()[0]
+            if not item and remain > .05:
+                time.sleep(.05)
+        else:
+            item = conn.blpop(queues, iremain)
+
+        if not item:
+            # couldn't find work
+            continue
+
+        q, id = item
+        queue = q.partition(':')[2]
+        args_key = MESSAGES_KEY + queue
+        pipeline.hget(args_key, id)
+        pipeline.hdel(args_key, id)
+        message = pipeline.execute()[0]
+        if not message:
+            # item was cancelled
+            continue
+
+        # return the work item
+        work = json.loads(message)
+        item_id = work[0]
+        # some annoying legacy stuff...
+        if len(work) == 4:
+            work.append(time.time())
+        if item_id == work[1]:
+            # periodic or cron task, re-schedule it
+            sch = work[-1] if item_id in NEVER_SKIP else time.time()
+            delay = REGISTRY[item_id].next(sch)
+            if delay is not None:
+                # it can be scheduled again, do it
+                if delay > 0:
+                    pipeline.zadd(QUEUE_KEY + queue, item_id, sch + delay)
+                else:
+                    pipeline.rpush(NOW_KEY + queue, item_id)
+                # re-add the call arguments
+                pipeline.hset(args_key, item_id, json.dumps(work[:4] + [time.time()]))
+                pipeline.execute()
+        return work
+
+def _handle_delayed(conn, queues=None, timeout=1):
+    # find the set of queues for processing
+    if not conn:
+        conn = get_connection()
+    pipeline = conn.pipeline(True)
+    queues = queues or []
+    if not queues:
+        queues = list(sorted(conn.smembers(QUEUES_KNOWN)))
+    if not queues:
+        time.sleep(timeout)
+        return
+    # cache the full queue strings
     queues = [QUEUE_KEY + q for q in queues]
 
     to_end = time.time() + timeout
     first = True
+    found = False
+    qm1 = len(queues) - 1
     i = 0
-    passes = 1
-    while time.time() <= to_end or first:
-        iqueue = iqueues[i]
+    while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
+        # remove old locks every pass
+        conn.zremrangebyscore(LOCK_KEY, 0, time.time())
         qkey = queues[i]
         # look for a work item
         item = conn.zrange(qkey, 0, 0, withscores=True)
@@ -147,36 +223,24 @@ def _get_work(conn, queues=None, timeout=1):
         else:
             # we've got a potential work item
             item_id, scheduled = item[0]
-            pipeline.hget(iqueue, item_id)
-            pipeline.hdel(iqueue, item_id)
-            pipeline.zrem(qkey, item_id)
-            message, _ignore, should_use = pipeline.execute()
-            if should_use:
-                # return the work item
-                work = json.loads(message)
-                work.append(scheduled)
-                if work[0] == work[1]:
-                    # periodic or cron task, re-schedule it
-                    sch = scheduled if item_id in NEVER_SKIP else time.time()
-                    delay = REGISTRY[item_id].next(sch)
-                    if delay is not None:
-                        # it can be scheduled again, do it
-                        pipeline.zadd(qkey, item_id, sch + delay)
-                        # re-add the call arguments
-                        pipeline.hset(iqueue, item_id, message)
-                        pipeline.execute()
-                return work
-            # the item was already taken by another processor, try again
-            # immediately
+            queue = qkey.partition(':')[2]
+            try:
+                # move the item over
+                with SimpleLock(conn, item_id):
+                    if conn.zrem(qkey, item_id):
+                        conn.rpush(PNOW_KEY + queue, item_id)
+            except NoLock:
+                pass
+            else:
+                found = True
             continue
         if i >= len(queues):
             # we tried all of the queues and didn't find any work, wait for a
             # bit and try again
             i = 0
             first = False
-            time.sleep(max(min(passes * timeout / 100.0, timeout), .05))
-        passes += 1
-    return None
+            if not found:
+                time.sleep(.05)
 
 class _Task(object):
     '''
@@ -184,7 +248,7 @@ class _Task(object):
     functions in modules.
     '''
     __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay'
-    def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30):
+    def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False):
         self.queue = queue
         self.name = name
         self.function = function
@@ -193,9 +257,12 @@ class _Task(object):
         if delay is None:
             pass
         elif isinstance(delay, (int, long, float)):
-            _assert(delay >= MINIMUM_DELAY,
-                "periodic delay must be at least %r seconds, you provided %r",
-                MINIMUM_DELAY, delay)
+            if not low_delay_okay:
+                _assert(delay >= MINIMUM_DELAY,
+                    "periodic delay must be at least %r seconds, you provided %r",
+                    MINIMUM_DELAY, delay)
+            else:
+                delay = max(delay, 0)
         elif isinstance(delay, str) and CronTab.__slots__:
             delay = CronTab(delay)
         elif isinstance(delay, CronTab) and CronTab.__slots__:
@@ -303,18 +370,49 @@ class _EnqueuedTask(object):
         '''
         Get the status of this task.
         '''
-        queue = QUEUE_KEY + self.queue
         conn = get_connection()
-        eta = conn.zscore(queue, self.taskid)
+        eta = conn.zscore(QUEUE_KEY + self.queue, self.taskid)
         if eta is None:
+            if conn.hexists(MESSAGES_KEY + self.queue, self.taskid):
+                return "waiting"
             return "done"
         elif eta <= time.time():
             return "late"
-        else:
-            return "early"
+        return "early"
     def __repr__(self):
         return "<EnqueuedTask taskid=%s queue=%s function=%s status=%s>"%(
             self.taskid, self.queue, self.name, self.status)
+
+class NoLock(Exception):
+    pass
+
+class SimpleLock(object):
+    '''
+    This lock is dirt simple. You shouldn't use it for anything unless you
+    want it to fail fast when the lock is already held.
+
+    If Redis had a "setnxex key value ttl" that set the 'key' to 'value' if it
+    wasn't already set, and also set the expiration to 'ttl', this lock
+    wouldn't exist.
+    '''
+    def __init__(self, conn, name, duration=1):
+        self.conn = conn
+        self.name = name
+        self.duration = duration
+    def __enter__(self):
+        if self.conn.zscore(LOCK_KEY, self.name):
+            # lock is already held, :(
+            raise NoLock()
+        if not self.conn.zadd(LOCK_KEY, self.name, time.time() + self.duration):
+            # we just refreshed the other lock, no big deal, it didn't exist
+            # one round-trip ago
+            raise NoLock()
+        return self
+    def __exit__(self, type, value, traceback):
+        if type is None:
+            self.conn.zrem(LOCK_KEY, self.name)
+    def refresh(self):
+        self.conn.zadd(LOCK_KEY, self.name, time.time() + self.duration)
 
 def task(*args, **kwargs):
     '''
@@ -342,7 +440,7 @@ def task(*args, **kwargs):
 
 _to_seconds = lambda td: td.days * 86400 + td.seconds + td.microseconds / 1000000.
 
-def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retry_delay=30):
+def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False):
     '''
     Decorator to allow the automatic repeated execution of a function every
     run_every seconds, which can be provided via int, long, float, or via a
@@ -387,13 +485,16 @@ def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retr
         run_every)
     if isinstance(run_every, datetime.timedelta):
         run_every = _to_seconds(run_every)
-    _assert(run_every >= MINIMUM_DELAY,
-        "periodic execution timer must be at least %r, you provided %r",
-        MINIMUM_DELAY, run_every)
+    if not low_delay_okay:
+        _assert(run_every >= MINIMUM_DELAY,
+            "periodic execution timer must be at least %r, you provided %r",
+            MINIMUM_DELAY, run_every)
+    else:
+        run_every = max(run_every, 0)
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=run_every, never_skip=never_skip,
-                     attempts=attempts, retry_delay=retry_delay)
+            attempts=attempts, retry_delay=retry_delay, low_delay_okay=low_delay_okay)
     return decorate
 
 if CronTab.__slots__:
@@ -459,7 +560,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
         pp.start()
         sp.append(pp)
     while not SHOULD_QUIT[0]:
-        time.sleep(.1)
+        _handle_delayed(get_connection(), queues, 1)
 
     log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
     # wait some time for processes to die...
@@ -517,7 +618,7 @@ def _execute_task(work):
         return
 
     now = datetime.datetime.utcnow()
-    jitter = now - datetime.datetime.utcfromtimestamp(scheduled)
+    jitter = time.time() - scheduled
     log_handler.debug("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
 
     if fname not in REGISTRY:
@@ -542,6 +643,12 @@ def known_queues(conn=None):
     conn = conn or get_connection()
     return list(sorted(conn.smembers(QUEUES_KNOWN), key=lambda x:x.lower()))
 
+def _window(size, seq):
+    iterators = []
+    for i in xrange(size):
+        iterators.append(itertools.islice(seq, i, len(seq), size))
+    return itertools.izip(*iterators)
+
 def queue_sizes(conn=None):
     '''
     Return a list of all known queues, their sizes, and the number of items
@@ -552,11 +659,13 @@ def queue_sizes(conn=None):
 
     pipeline = conn.pipeline(False)
     for queue in queues:
+        pipeline.llen(NOW_KEY + queue)
+        pipeline.llen(PNOW_KEY + queue)
         pipeline.zcard(QUEUE_KEY + queue)
     for queue in queues:
         pipeline.hget(SEEN_KEY, queue)
     items = pipeline.execute()
-    return zip(queues, items[:len(queues)], items[len(queues):])
+    return zip(queues, map(sum, _window(3, items[:-len(queues)])), items[-len(queues):])
 
 def clear_queue(queue, conn=None, delete=False):
     '''
@@ -564,9 +673,13 @@ def clear_queue(queue, conn=None, delete=False):
     '''
     conn = conn or get_connection()
     pipeline = conn.pipeline(True)
+    nkey = NOW_KEY + queue
+    pkey = PNOW_KEY + queue
     qkey = QUEUE_KEY + queue
+    pipeline.llen(nkey)
+    pipeline.llen(pkey)
     pipeline.zcard(qkey)
-    pipeline.delete(qkey, MESSAGES_KEY + queue)
+    pipeline.delete(nkey, pkey, qkey, MESSAGES_KEY + queue)
     if delete:
         pipeline.srem(QUEUES_KNOWN, queue)
     return pipeline.execute()[0]
@@ -578,16 +691,32 @@ def get_page(queue, page, per_page=50, conn=None):
     Get information about a sequence of tasks in the queue.
     '''
     conn = conn or get_connection()
-    page -= 1
+    page = max(0, page-1)
     start = page * per_page
-    end = (page + 1) * per_page - 1
-    tasks = conn.zrange(QUEUE_KEY + queue, start, end, withscores=True)
-    messages = conn.hmget(MESSAGES_KEY + queue, zip(*tasks)[0]) if tasks else []
+    end = start + per_page - 1
+    tasks = conn.lrange(PNOW_KEY + queue, start, end)
+    lt = conn.llen(PNOW_KEY + queue)
+    if len(tasks) < per_page:
+        start = start - lt + len(tasks)
+        end = start + per_page - 1 - len(tasks)
+        tasks.extend(conn.lrange(NOW_KEY + queue, start, end))
+        lt += conn.llen(NOW_KEY + queue)
+    if len(tasks) < per_page:
+        start = start - lt + len(tasks)
+        end = start + per_page - 1 - len(tasks)
+        tasks.extend(conn.zrange(QUEUE_KEY + queue, start, end, withscores=True))
+    stasks = [task if isinstance(task, str) else task[0] for task in tasks]
+    messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
-    for (tid, ts), msg in itertools.izip(tasks, messages):
+    for tid, msg in itertools.izip(tasks, messages):
+        if isinstance(tid, str):
+            ts = '<now>'
+        else:
+            tid, ts = tid
         try:
             if msg:
                 msg = json.loads(msg)
+                ts = ts if len(msg) == 4 else msg[4]
             else:
                 msg = _DONE_ITEM
         except:

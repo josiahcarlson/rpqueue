@@ -1,5 +1,6 @@
 
 import multiprocessing
+import threading
 import time
 import unittest
 
@@ -12,7 +13,10 @@ def _start_task_processor():
     t = multiprocessing.Process(target=rpqueue._execute_tasks, args=([queue],))
     t.daemon = True
     t.start()
-    return t
+    t2 = multiprocessing.Process(target=rpqueue._handle_delayed, args=(None, None, 60))
+    t2.daemon = True
+    t2.start()
+    return t, t2
 
 saw = multiprocessing.Array('i', (0,))
 
@@ -46,22 +50,34 @@ def speed2(**kwargs):
     saw[0] += 1
     speed2.retry(**kwargs)
 
-@rpqueue.task(queue=queue)
+@rpqueue.task(queue=queue, retry_delay=.000001)
+def speed3(**kwargs):
+    saw[0] += 1
+    speed3.retry(**kwargs)
+
+@rpqueue.periodic_task(0, queue=queue, low_delay_okay=True)
 def periodic_task():
     saw[0] += 1
+
+scale = 1000
 
 class TestRPQueue(unittest.TestCase):
     def setUp(self):
         saw[0] = 0
         rpqueue.clear_queue(queue)
         rpqueue.SHOULD_QUIT[0] = 0
-        self.t = _start_task_processor()
+        self.t, self.t2 = _start_task_processor()
 
     def tearDown(self):
         rpqueue.SHOULD_QUIT[0] = 1
         if self.t.is_alive():
             self.t.terminate()
+        if self.t2.is_alive():
+            self.t2.terminate()
         rpqueue.clear_queue(queue, delete=True)
+        task1.execute(1)
+        speed.execute()
+        speed.execute(delay=5)
 
     def test_simple_task(self):
         task1.execute(1)
@@ -106,38 +122,43 @@ class TestRPQueue(unittest.TestCase):
         self.assertEquals(saw[0], 6)
 
     def test_periodic_task(self):
-        # this will cause the task to be enqueued immediately
-        @rpqueue.periodic_task(1, queue=queue)
-        def periodic_task(self):
-            # The body doesn't matter, because the process will be executing
-            # using the earlier code. Also, the execute delay is ignored,
-            # so this will execute as fast as possible.
-            pass
+        periodic_task.execute(taskid=periodic_task.name)
         time.sleep(2)
         x = saw[0]
         self.assertTrue(x > 10, x)
+        print "\n%.1f tasks/second periodic tasks"%(x/2.0,)
 
-    def test_z_performance(self):
-        scale = 1000
-
+    def test_z_performance1(self):
         saw[0] = 0
         t = time.time()
         for i in xrange(scale):
             speed.execute()
         while saw[0] < scale:
-            time.sleep(.1)
+            time.sleep(.05)
+        s = saw[0]
         dt = time.time() - t
-        print "\n%.1f tasks/second injection/running"%(scale/dt,)
+        print "\n%.1f tasks/second injection/running"%(s/dt,)
 
-        scale /= 10
-
+    def test_z_performance2(self):
         saw[0] = 0
         t = time.time()
         speed2.execute(_attempts=scale)
         while saw[0] < scale:
-            time.sleep(.1)
-        dt2 = time.time() -t
-        print "%.1f tasks/second sequential retries"%(scale/dt2,)
+            time.sleep(.05)
+        s = saw[0]
+        dt2 = time.time() - t
+        print "%.1f tasks/second sequential retries"%(s/dt2,)
+
+    def test_z_performance3(self):
+        saw[0] = 0
+        _scale = scale / 4
+        t = time.time()
+        speed3.execute(_attempts=_scale)
+        while saw[0] < _scale:
+            time.sleep(.05)
+        s = saw[0]
+        dt3 = time.time() - t
+        print "%.1f tasks/second delayed retries"%(s/dt3,)
 
 if __name__ == '__main__':
     unittest.main()
