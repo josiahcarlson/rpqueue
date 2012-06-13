@@ -47,6 +47,7 @@ NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
 REENTRY_RETRY = 5
 MINIMUM_DELAY = 1
+EXECUTE_TASKS = False
 
 REDIS_CONNECTION_SETTINGS = {}
 POOL = None
@@ -109,9 +110,9 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     # enqueue it
     pipeline.hset(ikey, taskid, message)
     if taskid == fname:
-        pipeline.zadd(rqkey, taskid, ts)
+        pipeline.zadd(rqkey, **{taskid: ts})
     if delay > 0:
-        pipeline.zadd(qkey, taskid, ts)
+        pipeline.zadd(qkey, **{taskid: ts})
     else:
         pipeline.rpush(nkey, taskid)
     pipeline.sadd(QUEUES_KNOWN, queue)
@@ -184,7 +185,7 @@ def _get_work(conn, queues=None, timeout=1):
             if delay is not None:
                 # it can be scheduled again, do it
                 if delay > 0:
-                    pipeline.zadd(QUEUE_KEY + queue, item_id, sch + delay)
+                    pipeline.zadd(QUEUE_KEY + queue, **{item_id: sch + delay})
                 else:
                     pipeline.rpush(NOW_KEY + queue, item_id)
                 # re-add the call arguments
@@ -291,6 +292,9 @@ class _Task(object):
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
     def next(self, now=None):
+        if not EXECUTE_TASKS:
+            return None
+
         if isinstance(self.delay, CronTab):
             return self.delay.next(now)
         return self.delay
@@ -403,7 +407,7 @@ class SimpleLock(object):
         if self.conn.zscore(LOCK_KEY, self.name):
             # lock is already held, :(
             raise NoLock()
-        if not self.conn.zadd(LOCK_KEY, self.name, time.time() + self.duration):
+        if not self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration}):
             # we just refreshed the other lock, no big deal, it didn't exist
             # one round-trip ago
             raise NoLock()
@@ -412,7 +416,7 @@ class SimpleLock(object):
         if type is None:
             self.conn.zrem(LOCK_KEY, self.name)
     def refresh(self):
-        self.conn.zadd(LOCK_KEY, self.name, time.time() + self.duration)
+        self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration})
 
 def task(*args, **kwargs):
     '''
@@ -540,6 +544,8 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     Will execute tasks from the (optionally) provided queues until the first
     value in the global SHOULD_QUIT is considered false.
     '''
+    global EXECUTE_TASKS
+    EXECUTE_TASKS = True
     signal.signal(signal.SIGUSR1, quit_on_signal)
     log_handler.setLevel(logging.DEBUG)
     sp = []
