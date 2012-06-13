@@ -559,6 +559,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
 
     threads_per_process = max(threads_per_process, 1)
     processes = max(processes, 1)
+    __import__(module) # for any connection modification side-effects
     log_handler.info("Starting %i subprocesses", processes)
     for p in xrange(processes):
         pp = multiprocessing.Process(target=execute_task_threads, args=(queues, threads_per_process, 1, module))

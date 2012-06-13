@@ -7,7 +7,7 @@ with open('README') as f:
 
 setup(
     name='rpqueue',
-    version='.17',
+    version='.18',
     description='Use Redis as a priority-enabled and time-based task queue.',
     author='Josiah Carlson',
     author_email='josiah.carlson@gmail.com',
@@ -17,6 +17,7 @@ setup(
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
         'Programming Language :: Python',
+        'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     license='GNU LGPL v2.1',
     long_description=long_description,
