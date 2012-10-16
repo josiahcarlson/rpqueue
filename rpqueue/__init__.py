@@ -306,7 +306,7 @@ class _Task(object):
         taskid = kwargs.pop('taskid', None)
         if kwargs.pop('execute_inline_now', None):
             # allow for testing/debugging to execute the task immediately
-            _execute_task([None, self.name, args, kwargs])
+            _execute_task([None, self.name, args, kwargs, 0])
             return
         if self.attempts > 1 and '_attempts' not in kwargs:
             kwargs['_attempts'] = self.attempts
