@@ -690,11 +690,12 @@ def _execute_task(work, conn):
     else:
         log_handler.debug("SUCCESS: Task completed: %s %s", taskid, fname)
 
-def set_priority(conn=None, queue, qpri):
+def set_priority(queue, qpri, conn=None):
     '''
     Set the priority of a queue. Lower values means higher priorities.
     Queues with priorities come before queues without priorities.
     '''
+    conn = conn or get_connection()
     conn.zadd(QUEUES_PRIORITY, queue, qpri)
 
 def known_queues(conn=None):
