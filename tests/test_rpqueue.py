@@ -59,6 +59,11 @@ def speed3(**kwargs):
 def periodic_task():
     saw[0] += 1
 
+@rpqueue.task(queue=queue, save_results=10)
+def wait_test(n):
+    time.sleep(n)
+    return n
+
 scale = 1000
 
 class TestRPQueue(unittest.TestCase):
@@ -160,6 +165,22 @@ class TestRPQueue(unittest.TestCase):
         s = saw[0]
         dt3 = time.time() - t
         print "%.1f tasks/second delayed retries"%(s/dt3,)
+
+    def test_wait(self):
+        wt = wait_test.execute(.01, delay=1)
+        self.assertTrue(wt.wait(2))
+        time.sleep(.1)
+        self.assertEquals(wt.result, .01)
+
+        wt = wait_test.execute(2, delay=5)
+        self.assertFalse(wt.wait(4))
+        self.assertTrue(wt.cancel())
+
+        wt = wait_test.execute(2, delay=5)
+        wt.wait(6)
+        self.assertFalse(wt.cancel())
+        time.sleep(2.1)
+        self.assertEquals(wt.result, 2)
 
 if __name__ == '__main__':
     unittest.main()

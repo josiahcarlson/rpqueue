@@ -43,8 +43,8 @@ To call the above task, you would use::
     echo_to_stdout.execute(...)
     echo_to_stdout.execute(..., delay=delay_in_seconds)
 
-You can also schedule a task to be repeatedly executed with the ``periodic_task``
-decorator::
+You can also schedule a task to be repeatedly executed with the
+``periodic_task`` decorator::
 
     @periodic_task(25, queue="low")
     def function1():
@@ -71,10 +71,50 @@ default, all tasks have ``attempts`` set at 1, unless otherwise specified::
             print "succeeded"
 
 If passed the value ``3``, "succeeded" will never be printed. Why? The first
-try has value=3, attempts=3, and fails. The second pass has value=2, attempts=2,
-and fails. The third pass has value=1, attempts=1, fails, and the retry
-returns without retrying. The ``attempts`` value is the total number of
+try has value=3, attempts=3, and fails. The second pass has value=2,
+attempts=2, and fails. The third pass has value=1, attempts=1, fails, and the
+retry returns without retrying. The ``attempts`` value is the total number of
 attempts, including the first, and all retries.
+
+
+Waiting for task execution
+==========================
+
+As of version .19, RPQueue offers the ability to wait on a task until it
+begins execution::
+
+    @task
+    def my_task(args):
+        # do something
+
+    executing_task = my_task.execute()
+    if executing_task.wait(5):
+        # task is either being executed, or it is done
+    else:
+        # task has not started execution yet
+
+With the ability to wait for a task to complete, you can have the ability to
+add deadlines by inserting a call to ``executing_task.cancel()`` in the else
+block above.
+
+
+Automatically storing results of tasks
+======================================
+
+As of version .19, RPQueue offers the ability to store the result returned by
+a task as it completes::
+
+    @task(save_results=30)
+    def task_with_results():
+        return 5
+
+    etask = task_with_results.execute()
+    if etask.wait(5):
+        print etask.result # should print 5
+
+The ``save_results`` argument can be passed to tasks, periodic tasks, and even
+cron tasks (described below). The value passed will be how long the result is
+stored in Redis, in seconds. All results must be json-encodable.
 
 
 Additional features

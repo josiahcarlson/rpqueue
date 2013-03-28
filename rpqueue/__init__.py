@@ -2,7 +2,8 @@
 '''
 rpqueue (Redis Priority Queue)
 
-Written July 5, 2011 by Josiah Carlson
+Originally written July 5, 2011
+Copyright 2011-2013 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -35,6 +36,7 @@ except ImportError:
 import redis
 
 QUEUES_KNOWN = 'queues:all'
+QUEUES_PRIORITY = 'queues:wall'
 QUEUE_KEY = 'queue:'
 NOW_KEY = 'nqueue:'
 PNOW_KEY = 'pqueue:'
@@ -42,6 +44,8 @@ RQUEUE_KEY = 'rqueue:'
 MESSAGES_KEY = 'messages:'
 SEEN_KEY = 'seen:'
 LOCK_KEY = 'locks:'
+RESULT_KEY = 'result:'
+FINISHED_KEY = 'finished:'
 REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
@@ -133,7 +137,7 @@ def _get_work(conn, queues=None, timeout=1):
     # find the set of queues for processing
     pipeline = conn.pipeline(True)
     if not queues:
-        queues = list(sorted(conn.smembers(QUEUES_KNOWN)))
+        queues = known_queues(conn)
     if not queues:
         time.sleep(timeout)
         return
@@ -194,13 +198,17 @@ def _get_work(conn, queues=None, timeout=1):
         return work
 
 def _handle_delayed(conn, queues=None, timeout=1):
+    '''
+    Internal implementation detail of handling delayed requests. You shouldn't
+    need to call this function directly.
+    '''
     # find the set of queues for processing
     if not conn:
         conn = get_connection()
     pipeline = conn.pipeline(True)
     queues = queues or []
     if not queues:
-        queues = list(sorted(conn.smembers(QUEUES_KNOWN)))
+        queues = known_queues(conn)
     if not queues:
         time.sleep(timeout)
         return
@@ -248,13 +256,19 @@ class _Task(object):
     An object that represents a task to be executed. These will replace
     functions in modules.
     '''
-    __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay'
-    def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False):
+    __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay', 'save_results'
+    def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
+        '''
+        These Task objects are automatically created by the @task,
+        @periodic_task, and @cron_task decorators. You shouldn't need to
+        call this directly.
+        '''
         self.queue = queue
         self.name = name
         self.function = function
         self.attempts = int(max(attempts, 1))
         self.retry_delay = max(retry_delay, 0)
+        self.save_results = max(save_results, 0)
         if delay is None:
             pass
         elif isinstance(delay, (int, long, float)):
@@ -292,6 +306,9 @@ class _Task(object):
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
     def next(self, now=None):
+        '''
+        Calculates the next run time of recurring tasks.
+        '''
         if not EXECUTE_TASKS:
             return None
 
@@ -304,13 +321,13 @@ class _Task(object):
         '''
         delay = kwargs.pop('delay', None) or 0
         taskid = kwargs.pop('taskid', None)
+        conn = get_connection()
         if kwargs.pop('execute_inline_now', None):
             # allow for testing/debugging to execute the task immediately
-            _execute_task([None, self.name, args, kwargs, 0])
+            _execute_task([None, self.name, args, kwargs, 0], conn)
             return
         if self.attempts > 1 and '_attempts' not in kwargs:
             kwargs['_attempts'] = self.attempts
-        conn = get_connection()
         taskid = _enqueue_call(conn, self.queue, self.name, args, kwargs, delay, taskid=taskid)
         return _EnqueuedTask(self.name, taskid, self.queue)
     def retry(self, *args, **kwargs):
@@ -339,12 +356,15 @@ class _ExecutingTask(object):
         self.args = None
         self.kwargs = None
     def __call__(self, *args, **kwargs):
-        '''
-        Actually invoke the task.
-        '''
         self.args = args
         self.kwargs = kwargs
-        self.task.function(*args, **kwargs)
+        result = self.task.function(*args, **kwargs)
+        if self.task.save_results > 0:
+            get_connection().setex(
+                RESULT_KEY + self.taskid,
+                json.dumps(result),
+                self.task.save_results,
+            )
     def __repr__(self):
         return "<ExecutingTask taskid=%s function=%s args=%r kwargs=%r>"%(
             self.taskid, self.task.name, self.args, self.kwargs)
@@ -383,6 +403,26 @@ class _EnqueuedTask(object):
         elif eta <= time.time():
             return "late"
         return "early"
+    def cancel(self):
+        '''
+        Cancel the task, if it has not been executed yet.
+        '''
+        return delete_item(self.queue, self.taskid)
+    def wait(self, timeout=30):
+        '''
+        Will wait up to the specified timeout for the task to start execution,
+        returning whether the task started execution.
+        '''
+        end = time.time() + max(timeout, .01)
+        while self.status != 'done' and end > time.time():
+            time.sleep(.01)
+        return self.status == 'done'
+    @property
+    def result(self):
+        '''
+        Get the value returned by the task.
+        '''
+        return json.loads(get_connection().get(RESULT_KEY + self.taskid) or 'null')
     def __repr__(self):
         return "<EnqueuedTask taskid=%s queue=%s function=%s status=%s>"%(
             self.taskid, self.queue, self.name, self.status)
@@ -404,7 +444,10 @@ class SimpleLock(object):
         self.name = name
         self.duration = duration
     def __enter__(self):
-        if self.conn.zscore(LOCK_KEY, self.name):
+        pipe = self.conn.pipeline(True)
+        pipe.zremrangebyscore(LOCK_KEY, 0, time.time() - 15)
+        pipe.zscore(LOCK_KEY, self.name)
+        if pipe.execute()[-1]:
             # lock is already held, :(
             raise NoLock()
         if not self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration}):
@@ -421,60 +464,60 @@ class SimpleLock(object):
 def task(*args, **kwargs):
     '''
     Decorator to allow the transparent execution of a function as a task. Used
-    via:
+    via::
 
-    @task(queue='bar')
-    def function1(arg1, arg2, ...):
-        #will execute from within the 'bar' queue.
+        @task(queue='bar')
+        def function1(arg1, arg2, ...):
+            'will execute from within the 'bar' queue.'
 
-    @task
-    def function2(arg1, arg2, ...):
-        # will execute from within the 'default' queue.
+        @task
+        def function2(arg1, arg2, ...):
+            'will execute from within the 'default' queue.'
     '''
     queue = kwargs.pop('queue', None) or 'default'
     attempts = kwargs.pop('attempts', None) or 1
     retry_delay = max(kwargs.pop('retry_delay', 30), 0)
+    save_results = max(kwargs.pop('save_results', 0), 0)
     assert isinstance(queue, str)
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
-        return _Task(queue, name, function, attempts=attempts, retry_delay=retry_delay)
+        return _Task(queue, name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
     if args:
         return decorate(args[0])
     return decorate
 
 _to_seconds = lambda td: td.days * 86400 + td.seconds + td.microseconds / 1000000.
 
-def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False):
+def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
     '''
     Decorator to allow the automatic repeated execution of a function every
     run_every seconds, which can be provided via int, long, float, or via a
     datetime.timedelta instance. Run from the context of the given queue. Used
-    via:
+    via::
 
-    @periodic_task(25)
-    def function1():
-        # will be executed every 25 seconds from within the 'default' queue.
+        @periodic_task(25)
+        def function1():
+            'will be executed every 25 seconds from within the 'default' queue.'
 
-    @periodic_task(timedelta(minutes=5), queue='bar')
-    def function2():
-        # will be executed every 5 minutes from within the 'bar' queue.
+        @periodic_task(timedelta(minutes=5), queue='bar')
+        def function2():
+            'will be executed every 5 minutes from within the 'bar' queue.'
 
-    If never_skip is provided and is considered True, if you have a periodic
-    task that is defined as...
+    If never_skip is provided and is considered True like::
 
-    @periodic_task(60, never_skip=True)
-    def function3():
-        pass
+        @periodic_task(60, never_skip=True)
+        def function3():
+            pass
 
     ... and the function was scheduled to be executed at 4:15PM and 5 seconds,
     but actually executed at 4:25PM and 13 seconds, then prior to execution,
     it will be rescheduled to execute at 4:16PM and 5 seconds, which is 60
     seconds after the earlier scheduled time (it never skips a scheduled
-    time). If you instead had the periodic task defined as...
+    time). If you instead had the periodic task defined as::
 
-    @periodic_task(60, never_skip=True)
-    def function4():
-        pass
+        @periodic_task(60, never_skip=False)
+        def function4():
+            pass
 
     ... and the function was scheduled to be executed at 4:15PM and 5 seconds,
     but actually executed at 4:25PM and 13 seconds, then prior to execution,
@@ -498,41 +541,45 @@ def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retr
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=run_every, never_skip=never_skip,
-            attempts=attempts, retry_delay=retry_delay, low_delay_okay=low_delay_okay)
+            attempts=attempts, retry_delay=retry_delay, low_delay_okay=low_delay_okay,
+            save_results=save_results)
     return decorate
 
-if CronTab.__slots__:
-    def cron_task(crontab, queue='default', never_skip=False, attempts=1, retry_delay=30):
-        '''
-        Decorator to allow the automatic repeated execution of a function
-        on a schedule with a crontab syntax. Crontab syntax provided by the
-        'crontab' Python module: http://pypi.python.org/pypi/crontab/
+def cron_task(crontab, queue='default', never_skip=False, attempts=1, retry_delay=30, save_results=0):
+    if not CronTab.__slots__:
+        raise Exception("You must have the 'crontab' module installed to use @cron_task")
+    '''
+    Decorator to allow the automatic repeated execution of a function
+    on a schedule with a crontab syntax. Crontab syntax provided by the
+    'crontab' Python module: http://pypi.python.org/pypi/crontab/
+    Which must also be installed to use this decorator.
 
-        Similar in use to the @periodic_task decorator:
+    Similar in use to the @periodic_task decorator::
 
         @cron_task('* * * * *')
         def function1():
-            # will be executed every minute
+            'will be executed every minute'
 
         @cron_task('*/5 * * * *', queue='bar')
         def function2():
-            # will be executed every 5 minutes from within the 'bar' queue.
+            'will be executed every 5 minutes from within the 'bar' queue.'
 
-        If never_skip is provided and is considered True, it will attempt to
-        never skip a scheduled task, just like the @periodic_task decorator.
+    If never_skip is provided and is considered True, it will attempt to
+    never skip a scheduled task, just like the @periodic_task decorator.
 
-        Please see the crontab documentation for more information.
-        '''
-        _assert(isinstance(queue, str),
-            "queue name provided must be a string, not %r", queue)
-        _assert(isinstance(crontab, str),
-            "crontab provided must be a string, not %r", crontab)
-        crontab = CronTab(crontab)
-        def decorate(function):
-            name = '%s.%s'%(function.__module__, function.__name__)
-            return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
-                         attempts=attempts, retry_delay=retry_delay)
-        return decorate
+    Please see the crontab package documentation or the crontab Wikipedia
+    page for more information on the meaning of the schedule.
+    '''
+    _assert(isinstance(queue, str),
+        "queue name provided must be a string, not %r", queue)
+    _assert(isinstance(crontab, str),
+        "crontab provided must be a string, not %r", crontab)
+    crontab = CronTab(crontab)
+    def decorate(function):
+        name = '%s.%s'%(function.__module__, function.__name__)
+        return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
+                     attempts=attempts, retry_delay=retry_delay)
+    return decorate
 
 PREVIOUS = None
 
@@ -547,12 +594,13 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     global EXECUTE_TASKS
     EXECUTE_TASKS = True
     signal.signal(signal.SIGUSR1, quit_on_signal)
+    signal.signal(signal.SIGTERM, quit_on_signal)
     log_handler.setLevel(logging.DEBUG)
     sp = []
     def _signal_subprocesses(signum, frame):
         for pp in sp:
             if pp.is_alive():
-                # this won't actually kill the other process, just print it's stack.
+                # this won't actually kill the other process, just print its stack.
                 os.kill(pp.pid, signal.SIGUSR2)
         _print_stackframes_on_signal(signum, frame)
     signal.signal(signal.SIGUSR2, _signal_subprocesses)
@@ -571,15 +619,13 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
 
     log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
     # wait some time for processes to die...
-    total = threads_per_process * wait_per_thread
-    while total > 0 and sp:
-        t = time.time()
-        sp[0].join(min(total, 1))
-        if sp[0].is_alive():
-            sp.append(sp.pop(0))
-        else:
-            sp.pop(0)
-        total -= time.time() - t
+    end_time = threads_per_process * wait_per_thread + time.time()
+    while end_time > time.time() and sp:
+        for i in xrange(len(sp)-1, -1, -1):
+            sp[i].join(.01)
+            if not sp[i].is_alive():
+                del sp[i]
+        time.sleep(.05)
     # at this point we have waited long enough, they will die when we die.
     log_handler.info("Letting %i processes die", len(sp))
 
@@ -590,6 +636,7 @@ def _print_stackframes_on_signal(signum, frame):
 
 def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None):
     signal.signal(signal.SIGUSR1, quit_on_signal)
+    signal.signal(signal.SIGTERM, quit_on_signal)
     signal.signal(signal.SIGUSR2, _print_stackframes_on_signal)
     if module:
         __import__(module)
@@ -612,9 +659,9 @@ def _execute_tasks(queues=None):
         if not work:
             time.sleep(.05)
             continue
-        _execute_task(work)
+        _execute_task(work, conn)
 
-def _execute_task(work):
+def _execute_task(work, conn):
     '''
     Internal implementation detail to execute a single task.
     '''
@@ -643,12 +690,24 @@ def _execute_task(work):
     else:
         log_handler.debug("SUCCESS: Task completed: %s %s", taskid, fname)
 
+def set_priority(conn=None, queue, qpri):
+    '''
+    Set the priority of a queue. Lower values means higher priorities.
+    Queues with priorities come before queues without priorities.
+    '''
+    conn.zadd(QUEUES_PRIORITY, queue, qpri)
+
 def known_queues(conn=None):
     '''
     Get a list of all known queues.
     '''
     conn = conn or get_connection()
-    return list(sorted(conn.smembers(QUEUES_KNOWN), key=lambda x:x.lower()))
+    q, pq = conn.pipeline(True) \
+        .smembers(QUEUES_KNOWN) \
+        .zrange(QUEUES_PRIORITY, 0, -1) \
+        .execute()
+    q = list(sorted(q, key=lambda x:x.lower()))
+    return pq + [qi for qi in q if qi not in pq]
 
 def _window(size, seq):
     iterators = []
@@ -689,6 +748,7 @@ def clear_queue(queue, conn=None, delete=False):
     pipeline.delete(nkey, pkey, qkey, MESSAGES_KEY + queue)
     if delete:
         pipeline.srem(QUEUES_KNOWN, queue)
+        pipeline.zrem(QUEUES_PRIORITY, queue)
     return pipeline.execute()[0]
 
 _BAD_ITEM = (None, '<unknown>', '<unknown>', '<unknown>')
