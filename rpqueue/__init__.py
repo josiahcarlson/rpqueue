@@ -52,6 +52,7 @@ SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
 REENTRY_RETRY = 5
 MINIMUM_DELAY = 1
 EXECUTE_TASKS = False
+QUEUE_ITEMS_PER_PASS = 100
 
 REDIS_CONNECTION_SETTINGS = {}
 POOL = None
@@ -63,6 +64,31 @@ log_handler = logging.root
 def _assert(condition, message, *args):
     if not condition:
         raise ValueError(message%args)
+
+def script_load(script):
+    '''
+    Borrowed from my book, Redis in Action:
+    https://github.com/josiahcarlson/redis-in-action/blob/master/python/ch11_listing_source.py
+    '''
+    sha = [None]
+    def call(conn, keys=[], args=[], force_eval=False):
+        if not force_eval:
+            if not sha[0]:
+                sha[0] = conn.execute_command(
+                    "SCRIPT", "LOAD", script, parse="LOAD")
+
+            try:
+                return conn.execute_command(
+                    "EVALSHA", sha[0], len(keys), *(keys+args))
+
+            except redis.exceptions.ResponseError as msg:
+                if not msg.args[0].startswith("NOSCRIPT"):
+                    raise
+
+        return conn.execute_command(
+            "EVAL", script, len(keys), *(keys+args))
+
+    return call
 
 def set_redis_connection_settings(host='localhost', port=6379, db=0,
     password=None, socket_timeout=30, unix_socket_path=None):
@@ -197,21 +223,47 @@ def _get_work(conn, queues=None, timeout=1):
                 pipeline.execute()
         return work
 
-def _handle_delayed(conn, queues=None, timeout=1):
+_handle_delayed_lua = script_load('''
+local run_again = false
+local cutoff = ARGV[1]
+local limit = tonumber(ARGV[2] or '100')
+
+for ids, qname in ipairs(KEYS) do
+    local queue = 'queue:' .. qname
+    local items = redis.call('zrangebyscore', queue, '-inf', cutoff, 'limit', 0, limit)
+    local isize = #items
+    if isize > 0 then
+        redis.call('zremrangebyrank', queue, 0, isize-1)
+        redis.call('rpush', 'pqueue:' .. qname, unpack(items))
+        run_again = run_again or isize >= limit
+    end
+end
+return run_again
+''')
+
+def handle_delayed_lua_(conn, queues, timeout):
     '''
     Internal implementation detail of handling delayed requests. You shouldn't
     need to call this function directly.
     '''
-    # find the set of queues for processing
-    if not conn:
-        conn = get_connection()
-    pipeline = conn.pipeline(True)
-    queues = queues or []
-    if not queues:
-        queues = known_queues(conn)
-    if not queues:
-        time.sleep(timeout)
-        return
+    # This changes the delay semantics to basically be:
+    # Until we run out of time/quit:
+    #     If any queue had >= QUEUE_ITEMS_PER_PASS entries processed, retry immediately.
+    #     Otherwise wait 50 milliseconds and go again.
+
+    to_end = time.time() + timeout
+    first = True
+    while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
+        first = False
+        run_again = _handle_delayed_lua(conn, queues, [time.time(), QUEUE_ITEMS_PER_PASS])
+        if not run_again:
+            time.sleep(.05)
+
+def handle_delayed_python_(conn, queues, timeout):
+    '''
+    Internal implementation detail of handling delayed requests. You shouldn't
+    need to call this function directly.
+    '''
     # cache the full queue strings
     queues = [QUEUE_KEY + q for q in queues]
 
@@ -250,6 +302,30 @@ def _handle_delayed(conn, queues=None, timeout=1):
             first = False
             if not found:
                 time.sleep(.05)
+
+def _handle_delayed(conn, queues=None, timeout=1, impl=[]):
+    # find the set of queues for processing
+    if not conn:
+        conn = get_connection()
+
+    if not impl:
+        # We're using the mutable default attribute to hide our decision as
+        # to whether to use a Lua or Python-based delayed queue item handler.
+        try:
+            conn.execute_command('EVAL', 'return 1', 0)
+        except redis.exceptions.ResponseError:
+            impl.append(handle_delayed_python_)
+        else:
+            impl.append(handle_delayed_lua_)
+
+    queues = queues or []
+    if not queues:
+        queues = known_queues(conn)
+    if not queues:
+        time.sleep(timeout)
+        return
+
+    impl[0](conn, queues, timeout)
 
 class _Task(object):
     '''

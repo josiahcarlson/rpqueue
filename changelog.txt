@@ -1,0 +1,10 @@
+#----------------------------------- 0.21 ------------------------------------
+[changed] where available, rpqueue will now use Lua to move delayed tasks from
+    the time-based priority queue to fifo queues. This should reduce overhead
+    in all cases, and should drastically improve performance for those that
+    use large numbers of delayed tasks.
+[changed] the version number is now PEP 386/440 compliant.
+[added] this changelog that will document updates/changes/improvements in an
+    easily referenced location.
+[fixed] thanks to https://github.com/dmaust , rpqueue added a missing 'redis'
+    requirement.
