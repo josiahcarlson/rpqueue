@@ -2,12 +2,15 @@
 
 from distutils.core import setup
 
-with open('README.rst') as f:
-    long_description = f.read()
+try:
+    with open('README.rst') as f:
+        long_description = f.read()
+except IOError:
+    long_description = ''
 
 setup(
     name='rpqueue',
-    version='0.21',
+    version='0.22',
     description='Use Redis as a priority-enabled and time-based task queue.',
     author='Josiah Carlson',
     author_email='josiah.carlson@gmail.com',
