@@ -1,3 +1,6 @@
+#----------------------------------- 0.23 ------------------------------------
+[changed] Added log_level command line parameter and changed "executed task"
+logger to log level INFO
 #----------------------------------- 0.22 ------------------------------------
 [fixed] setup.py-based installations. Ran into the bug myself :/
 #----------------------------------- 0.21 ------------------------------------
