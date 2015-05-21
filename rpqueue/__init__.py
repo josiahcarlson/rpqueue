@@ -764,7 +764,7 @@ def _execute_task(work, conn):
     except:
         log_handler.exception("ERROR: Exception in task %r: %s", to_execute, traceback.format_exc().rstrip())
     else:
-        log_handler.debug("SUCCESS: Task completed: %s %s", taskid, fname)
+        log_handler.info("SUCCESS: Task completed: %s %s", taskid, fname)
 
 def set_priority(queue, qpri, conn=None):
     '''
