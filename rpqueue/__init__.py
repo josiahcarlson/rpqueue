@@ -58,8 +58,10 @@ REDIS_CONNECTION_SETTINGS = {}
 POOL = None
 PID = None
 
+valid_loglevels = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 logging.basicConfig()
 log_handler = logging.root
+
 
 def _assert(condition, message, *args):
     if not condition:
@@ -917,6 +919,8 @@ if redis.__version__ >= '2.4':
         help='The unix path to connect to Redis with (use unix path OR host/port, not both')
 cgroup.add_option('--timeout', dest='timeout', action='store', type='int', default=30,
     help='How long to wait for a connection or command to succeed or fail')
+cgroup.add_option('--loglevel', dest='loglevel', action='store', type='string', default='DEBUG',
+    help='Set the default loglevel for logging')
 
 if __name__ == '__main__':
 
@@ -965,6 +969,21 @@ if __name__ == '__main__':
     if (bool(options.clear) + bool(options.page) + bool(options.delete)) > 1:
         print "You can choose at most one of --clear, --page, or --delete"
         sys.exit(1)
+
+    if options.loglevel not in valid_loglevels:
+        print "choose a valid loglevel from {0}".format(valid_loglevels)
+        sys.exit(1)
+
+    if options.loglevel.upper() == 'DEBUG':
+        log_handler.setLevel(logging.DEBUG)
+    elif options.loglevel.upper() == 'INFO':
+        log_handler.setLevel(logging.INFO)
+    elif options.loglevel.upper() == 'WARNING':
+        log_handler.setLevel(logging.WARNING)
+    elif options.loglevel.upper() == 'ERROR':
+        log_handler.setLevel(logging.ERROR)
+    else:
+        log_handler.setLevel(logging.DEBUG)
 
     if options.clear:
         items = clear_queue(options.queue)
