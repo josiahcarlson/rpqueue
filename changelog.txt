@@ -1,3 +1,14 @@
+#----------------------------------- 0.23 ------------------------------------
+[added] --loglevel and --successlevel to set the minimum log level to print
+    and the log level that "SUCCESS: Task completed:" messages are sent at
+    when using `python -m rpqueue.run ...` invocation. Initial patch thanks
+    to: https://github.com/zenweasel
+[added] when running rpqueue via `rpqueue.execute_tasks()`, you can set the
+    log level and success log level (--loglevel and --successlevel, mentioned
+    above) via setting the rpqueue.LOG_LEVEL and rpqueue.SUCCESS_LOG_LEVEL
+    attributes to one of: 'DEBUG', 'INFO', 'WARNING', or 'ERROR' .
+[updated] the Lua script runner wrapper we use for delayed task execution to
+    be cleaner.
 #----------------------------------- 0.22 ------------------------------------
 [fixed] setup.py-based installations. Ran into the bug myself :/
 #----------------------------------- 0.21 ------------------------------------

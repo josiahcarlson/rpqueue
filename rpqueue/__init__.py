@@ -3,7 +3,7 @@
 rpqueue (Redis Priority Queue)
 
 Originally written July 5, 2011
-Copyright 2011-2013 Josiah Carlson
+Copyright 2011-2015 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -11,6 +11,7 @@ Other licenses may be available upon request.
 '''
 
 import datetime
+from hashlib import sha1
 import itertools
 try:
     import simplejson as json
@@ -58,8 +59,12 @@ REDIS_CONNECTION_SETTINGS = {}
 POOL = None
 PID = None
 
+LOG_LEVELS = dict((v, getattr(logging, v)) for v in ['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+LOG_LEVEL = 'debug'
 logging.basicConfig()
 log_handler = logging.root
+
+SUCCESS_LOG_LEVEL = 'debug'
 
 def _assert(condition, message, *args):
     if not condition:
@@ -67,26 +72,26 @@ def _assert(condition, message, *args):
 
 def script_load(script):
     '''
-    Borrowed from my book, Redis in Action:
+    Borrowed and updated from my book, Redis in Action:
     https://github.com/josiahcarlson/redis-in-action/blob/master/python/ch11_listing_source.py
     '''
-    sha = [None]
+    sha = [None, sha1(script).hexdigest()]
     def call(conn, keys=[], args=[], force_eval=False):
         if not force_eval:
             if not sha[0]:
-                sha[0] = conn.execute_command(
-                    "SCRIPT", "LOAD", script, parse="LOAD")
+                try:
+                    return conn.execute_command("EVAL", script, len(keys), *(keys+args))
+                finally:
+                    del sha[:-1]
 
             try:
-                return conn.execute_command(
-                    "EVALSHA", sha[0], len(keys), *(keys+args))
+                return conn.execute_command("EVALSHA", sha[0], len(keys), *(keys+args))
 
             except redis.exceptions.ResponseError as msg:
                 if not msg.args[0].startswith("NOSCRIPT"):
                     raise
 
-        return conn.execute_command(
-            "EVAL", script, len(keys), *(keys+args))
+        return conn.execute_command("EVAL", script, len(keys), *(keys+args))
 
     return call
 
@@ -270,7 +275,6 @@ def handle_delayed_python_(conn, queues, timeout):
     to_end = time.time() + timeout
     first = True
     found = False
-    qm1 = len(queues) - 1
     i = 0
     while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
         # remove old locks every pass
@@ -662,6 +666,8 @@ PREVIOUS = None
 def quit_on_signal(signum, frame):
     SHOULD_QUIT[0] = 1
 
+SUCCESS_LOG = None
+
 def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thread=1, module=None):
     '''
     Will execute tasks from the (optionally) provided queues until the first
@@ -671,7 +677,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     EXECUTE_TASKS = True
     signal.signal(signal.SIGUSR1, quit_on_signal)
     signal.signal(signal.SIGTERM, quit_on_signal)
-    log_handler.setLevel(logging.DEBUG)
+    log_handler.setLevel(LOG_LEVELS[LOG_LEVEL.upper()])
     sp = []
     def _signal_subprocesses(signum, frame):
         for pp in sp:
@@ -747,6 +753,10 @@ def _execute_task(work, conn):
         log_handler.exception(err)
         return
 
+    global SUCCESS_LOG
+    if SUCCESS_LOG is None:
+        SUCCESS_LOG = getattr(log_handler, SUCCESS_LOG_LEVEL.lower(), log_handler.debug)
+
     now = datetime.datetime.utcnow()
     jitter = time.time() - scheduled
     log_handler.debug("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
@@ -764,7 +774,7 @@ def _execute_task(work, conn):
     except:
         log_handler.exception("ERROR: Exception in task %r: %s", to_execute, traceback.format_exc().rstrip())
     else:
-        log_handler.debug("SUCCESS: Task completed: %s %s", taskid, fname)
+        SUCCESS_LOG("SUCCESS: Task completed: %s %s", taskid, fname)
 
 def set_priority(queue, qpri, conn=None):
     '''

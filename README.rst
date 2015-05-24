@@ -25,6 +25,17 @@ Redis server, then you must start the task execution daemon::
     rpqueue.set_redis_connection_settings(host, port, db)
     rpqueue.execute_tasks()
 
+Alternatively, rpqueue offers a command-line interface to do the same, though
+you must provide the name of a module or package that imports all modules or
+packages that define tasks that you want to run. For example::
+
+    # tasks.py
+    from tasks import accounting, cleanup, ...
+    # any other imports or configuration necessary, put them here
+
+    # run from the command-line
+    python -m rpqueue.run --module=tasks --host=... --port=... --db=...
+
 
 Example uses
 ============

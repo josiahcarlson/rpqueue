@@ -21,6 +21,10 @@ if __name__ == '__main__':
         help='The number of seconds to wait per running thread when killed with USR1 '\
              'before letting them die a horrible death (maximum total time is wait * '\
              'processes * threads)')
+    rgroup.add_option('--loglevel', dest='loglevel', action='store', type='string',
+        default='DEBUG', help='Set the default log level for logging')
+    rgroup.add_option('--successlevel', dest='successlevel', action='store', type='string',
+        default='DEBUG', help='Set the log level for logging "Task X finished executing successfully" results')
     rpqueue.parser.add_option_group(rpqueue.cgroup)
     rpqueue.parser.add_option_group(rgroup)
     options, args = rpqueue.parser.parse_args()
@@ -40,7 +44,17 @@ if __name__ == '__main__':
     if options.wait < 0:
         print "You must provide a non-negative wait, you provided %r"%(options.wait,)
         sys.exit(1)
+    LOG_LEVELS = rpqueue.LOG_LEVELS
+    if options.loglevel.upper() not in LOG_LEVELS:
+        print "You must choose a valid log level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),)
+        sys.exit(1)
+    if options.successlevel.upper() not in LOG_LEVELS:
+        print "You must choose a valid success level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),)
+        sys.exit(1)
     import imp
     # used for the side-effect if it can't be found
     imp.find_module(options.run)
+    # set the log level
+    rpqueue.LOG_LEVEL = options.loglevel.upper()
+    rpqueue.SUCCESS_LOG_LEVEL = options.successlevel.lower()
     rpqueue.execute_tasks((args or None), options.threads, options.processes, options.wait, module=options.run)
