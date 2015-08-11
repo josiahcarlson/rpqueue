@@ -36,6 +36,9 @@ except ImportError:
 
 import redis
 
+if map(int, redis.__version__.split('.')) < [2, 4, 12]:
+    raise Exception("Upgrade your Redis client to version 2.4.12 or later")
+
 QUEUES_KNOWN = 'queues:all'
 QUEUES_PRIORITY = 'queues:wall'
 QUEUE_KEY = 'queue:'
@@ -57,7 +60,6 @@ QUEUE_ITEMS_PER_PASS = 100
 
 REDIS_CONNECTION_SETTINGS = {}
 POOL = None
-PID = None
 
 LOG_LEVELS = dict((v, getattr(logging, v)) for v in ['DEBUG', 'INFO', 'WARNING', 'ERROR'])
 LOG_LEVEL = 'debug'
@@ -105,17 +107,22 @@ def set_redis_connection_settings(host='localhost', port=6379, db=0,
     REDIS_CONNECTION_SETTINGS = locals()
     if redis.__version__ < '2.4':
         REDIS_CONNECTION_SETTINGS.pop('unix_socket_path', None)
-    POOL = threading.local()
+    POOL = None
+
+def set_redis_connection(conn):
+    '''
+    Sets the global pooled connection to the provided connection object. Useful
+    for environments where additional pooling or other options are desired or
+    required.
+    '''
+    global POOL
+    POOL = conn
 
 def get_connection():
-    global PID
-    if PID != os.getpid():
-        # handle fork() after connection, and initial connection
-        PID = os.getpid()
-        set_redis_connection_settings(**REDIS_CONNECTION_SETTINGS)
-    if not getattr(POOL, 'conn', None):
-        POOL.conn = redis.Redis(**REDIS_CONNECTION_SETTINGS)
-    return POOL.conn
+    global POOL
+    if not POOL:
+        POOL = redis.Redis(**REDIS_CONNECTION_SETTINGS)
+    return POOL
 
 def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     '''

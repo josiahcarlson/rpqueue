@@ -1,3 +1,10 @@
+#---------------------------------- 0.24.0 -----------------------------------
+[changed] forced a hard requirement on the Redis client to be 2.4.12 or later
+    to remove the unnecessary thread/fork-safe pooling. The Redis client has
+    been thread/fork safe since 2.4.12 (though got better multiple thread
+    post-fork support in 2.9.0)
+[changed] added rpqueue.set_redis_connection() for manually setting additional
+    options (note that you can also just say `rpqueue.POOL = conn`)
 #----------------------------------- 0.23 ------------------------------------
 [added] --loglevel and --successlevel to set the minimum log level to print
     and the log level that "SUCCESS: Task completed:" messages are sent at
