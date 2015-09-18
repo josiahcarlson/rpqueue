@@ -67,6 +67,7 @@ logging.basicConfig()
 log_handler = logging.root
 
 SUCCESS_LOG_LEVEL = 'debug'
+AFTER_FORK = None
 
 def _assert(condition, message, *args):
     if not condition:
@@ -729,6 +730,11 @@ def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None)
     signal.signal(signal.SIGUSR2, _print_stackframes_on_signal)
     if module:
         __import__(module)
+    if AFTER_FORK:
+        try:
+            AFTER_FORK()
+        except:
+            log_handler.exception("ERROR: Exception in AFTER_FORK function: %s", traceback.format_exc().rstrip())
     st = []
     log_handler.info("PID %i executing tasks in %i threads", os.getpid(), threads)
     for t in xrange(threads-1):

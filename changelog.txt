@@ -1,3 +1,9 @@
+#---------------------------------- 0.24.1 -----------------------------------
+[added] the ability to call a single function after worker processes have been
+    created. `import rom; rom.AFTER_FORK = fcn` - put this in the same module
+    that imports all of your tasks (the module referred to in --module), and
+    the function will be run in the newly forked child, just prior to starting
+    worker threads
 #---------------------------------- 0.24.0 -----------------------------------
 [changed] forced a hard requirement on the Redis client to be 2.4.12 or later
     to remove the unnecessary thread/fork-safe pooling. The Redis client has
