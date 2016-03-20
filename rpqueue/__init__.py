@@ -666,7 +666,8 @@ def cron_task(crontab, queue='default', never_skip=False, attempts=1, retry_dela
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
-                     attempts=attempts, retry_delay=retry_delay)
+                     attempts=attempts, retry_delay=retry_delay,
+                     save_results=save_results)
     return decorate
 
 PREVIOUS = None
