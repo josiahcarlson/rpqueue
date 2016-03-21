@@ -1,3 +1,14 @@
+#---------------------------------- 0.25.0 -----------------------------------
+[fixed] cron tasks will now save the results of their execution if requested,
+    the argument to make this happen was mistakenly not passed onto the class
+    that handles all of this. Thank you to github user
+    https://github.com/jpassaro for the bug report and PR
+[added] the ability to use a "prefix" to allow namespacing of rpqueue queues
+    on the same Redis server. See `rpqueue.set_prefix()`
+[added] the ability to instantiate a new rpqueue "state", for running parallel
+    task execution systems with different prefixes, connections, etc. See
+    `rpqueue.new_rpqueue(name, pfix=None)`
+[added] warning-laced support for Python 3.x. The tests pass :P
 #---------------------------------- 0.24.1 -----------------------------------
 [added] the ability to call a single function after worker processes have been
     created. `import rom; rom.AFTER_FORK = fcn` - put this in the same module

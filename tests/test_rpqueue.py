@@ -1,4 +1,5 @@
 
+from __future__ import print_function
 import multiprocessing
 import threading
 import time
@@ -7,9 +8,9 @@ import unittest
 import rpqueue
 rpqueue.log_handler.setLevel(rpqueue.logging.CRITICAL)
 
-queue = 'TEST_QUEUE'
+queue = b'TEST_QUEUE'
 
-def _start_task_processor():
+def _start_task_processor(rpqueue=rpqueue):
     t = multiprocessing.Process(target=rpqueue._execute_tasks, args=([queue],))
     t.daemon = True
     t.start()
@@ -59,10 +60,12 @@ def speed3(**kwargs):
 def periodic_task():
     saw[0] += 1
 
-@rpqueue.task(queue=queue, save_results=10)
+@rpqueue.task(queue=queue, save_results=30)
 def wait_test(n):
     time.sleep(n)
     return n
+
+global_wait_test = wait_test
 
 scale = 1000
 
@@ -132,18 +135,18 @@ class TestRPQueue(unittest.TestCase):
         time.sleep(2)
         x = saw[0]
         self.assertTrue(x > 0, x)
-        print "\n%.1f tasks/second periodic tasks"%(x/2.0,)
+        print("\n%.1f tasks/second periodic tasks"%(x/2.0,))
 
     def test_z_performance1(self):
         saw[0] = 0
         t = time.time()
-        for i in xrange(scale):
+        for i in range(scale):
             speed.execute()
         while saw[0] < scale:
             time.sleep(.05)
         s = saw[0]
         dt = time.time() - t
-        print "\n%.1f tasks/second injection/running"%(s/dt,)
+        print("\n%.1f tasks/second injection/running"%(s/dt,))
 
     def test_z_performance2(self):
         saw[0] = 0
@@ -153,7 +156,7 @@ class TestRPQueue(unittest.TestCase):
             time.sleep(.05)
         s = saw[0]
         dt2 = time.time() - t
-        print "%.1f tasks/second sequential retries"%(s/dt2,)
+        print("%.1f tasks/second sequential retries"%(s/dt2,))
 
     def test_z_performance3(self):
         saw[0] = 0
@@ -164,12 +167,12 @@ class TestRPQueue(unittest.TestCase):
             time.sleep(.05)
         s = saw[0]
         dt3 = time.time() - t
-        print "%.1f tasks/second delayed retries"%(s/dt3,)
+        print("%.1f tasks/second delayed retries"%(s/dt3,))
 
     def test_wait(self):
         wt = wait_test.execute(.01, delay=1)
         self.assertTrue(wt.wait(2))
-        time.sleep(.1)
+        time.sleep(1)
         self.assertEquals(wt.result, .01)
 
         wt = wait_test.execute(2, delay=5)
@@ -181,6 +184,31 @@ class TestRPQueue(unittest.TestCase):
         self.assertFalse(wt.cancel())
         time.sleep(2.1)
         self.assertEquals(wt.result, 2)
+
+    def test_instance(self):
+        rpq2 = rpqueue.new_rpqueue('test', 'tpfix')
+        rpq2.log_handler.setLevel(rpqueue.logging.CRITICAL)
+        @rpq2.task(queue=queue, save_results=30)
+        def wait_test(arg):
+            # doesn't wait, alternate implementation, for prefix/instance
+            # testing :P
+            return arg
+
+        wt = global_wait_test.execute(0)
+        time.sleep(1)
+        self.assertEquals(wt.result, 0)
+
+        wt2 = wait_test.execute(0)
+        time.sleep(1)
+        # no task runner!
+        self.assertEquals(wt2.result, None)
+        t1, t2 = _start_task_processor(rpq2)
+        time.sleep(1)
+        self.assertEquals(wt2.result, 0)
+        rpq2.SHOULD_QUIT[0] = 1
+        # wait for the runner to quit
+        t1.join()
+        t2.join()
 
 if __name__ == '__main__':
     unittest.main()

@@ -10,8 +10,10 @@ available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 Other licenses may be available upon request.
 '''
 
+from __future__ import print_function
 import datetime
 from hashlib import sha1
+import imp
 import itertools
 try:
     import simplejson as json
@@ -25,6 +27,7 @@ import sys
 import time
 import threading
 import traceback
+import types
 import uuid
 
 try:
@@ -36,20 +39,80 @@ except ImportError:
 
 import redis
 
-if map(int, redis.__version__.split('.')) < [2, 4, 12]:
+if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-QUEUES_KNOWN = 'queues:all'
-QUEUES_PRIORITY = 'queues:wall'
-QUEUE_KEY = 'queue:'
-NOW_KEY = 'nqueue:'
-PNOW_KEY = 'pqueue:'
-RQUEUE_KEY = 'rqueue:'
-MESSAGES_KEY = 'messages:'
-SEEN_KEY = 'seen:'
-LOCK_KEY = 'locks:'
-RESULT_KEY = 'result:'
-FINISHED_KEY = 'finished:'
+RPQUEUE_CONFIGS = {}
+
+def new_rpqueue(name, pfix=None):
+    '''
+    Creates a new rpqueue state for running separate rpqueue task systems in the
+    same codebase. Simplifies for multiple Redis servers, and allows for using
+    the same Redis server without using queue names (just use a 'prefix').
+    '''
+    # I had planned on building a class to embed state, etc., then I decided to
+    # use the hack I'd already advised someone else to do. Warning: here there
+    # be dragons. Yes, the module gets reloaded. I'm using that like class state.
+    # :P
+
+    # copy the original rpqueue out, that's our registry
+    root = sys.modules[__name__]
+    configs = root.RPQUEUE_CONFIGS
+    if name in configs:
+        raise Exception("Rpqueue config name %r already exists!"%(name,))
+
+    # make a new module
+    nr = types.ModuleType(__name__)
+    # copy attributes over and set the sys.modules so the reload() works right
+    nr.__dict__.update(root.__dict__)
+    sys.modules[__name__] = nr
+    imp.reload(nr) if PY3 else reload(nr)
+
+    # put the registry back
+    sys.modules[__name__] = root
+    if pfix:
+        # update the prefix, as necessary
+        nr.set_key_prefix(pfix)
+    return nr
+
+# Also super lazy, but I am being lazy tonight.
+_NAME_KEYS = dict(
+    QUEUES_KNOWN = b'queues:all',
+    QUEUES_PRIORITY = b'queues:wall',
+    QUEUE_KEY = b'queue:',
+    NOW_KEY = b'nqueue:',
+    PNOW_KEY = b'pqueue:',
+    RQUEUE_KEY = b'rqueue:',
+    MESSAGES_KEY = b'messages:',
+    SEEN_KEY = b'seen:',
+    LOCK_KEY = b'locks:',
+    RESULT_KEY = b'result:',
+    FINISHED_KEY = b'finished:',
+)
+# silence Pyflakes
+QUEUES_KNOWN = _NAME_KEYS['QUEUES_KNOWN']
+QUEUES_PRIORITY = _NAME_KEYS['QUEUES_PRIORITY']
+QUEUE_KEY = _NAME_KEYS['QUEUE_KEY']
+NOW_KEY = _NAME_KEYS['NOW_KEY']
+PNOW_KEY = _NAME_KEYS['PNOW_KEY']
+RQUEUE_KEY = _NAME_KEYS['RQUEUE_KEY']
+MESSAGES_KEY = _NAME_KEYS['MESSAGES_KEY']
+SEEN_KEY = _NAME_KEYS['SEEN_KEY']
+LOCK_KEY = _NAME_KEYS['LOCK_KEY']
+RESULT_KEY = _NAME_KEYS['RESULT_KEY']
+FINISHED_KEY = _NAME_KEYS['FINISHED_KEY']
+
+def set_key_prefix(pfix):
+    '''
+    Run before starting any tasks or task runners; will set the prefix on keys
+    in Redis, allowing for multiple parallel rpqueue executions in the same
+    Redis without worrying about queue names.
+    '''
+    if PY3 and isinstance(pfix, str):
+        pfix = pfix.encode('latin-1')
+    globals().update((k, pfix+v) for k, v in _NAME_KEYS.items())
+
+PY3 = sys.version_info >= (3, 0)
 REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
@@ -78,6 +141,8 @@ def script_load(script):
     Borrowed and updated from my book, Redis in Action:
     https://github.com/josiahcarlson/redis-in-action/blob/master/python/ch11_listing_source.py
     '''
+    tt = str if PY3 else unicode
+    script = script.encode('latin-1') if isinstance(script, tt) else script
     sha = [None, sha1(script).hexdigest()]
     def call(conn, keys=[], args=[], force_eval=False):
         if not force_eval:
@@ -206,7 +271,7 @@ def _get_work(conn, queues=None, timeout=1):
             continue
 
         q, id = item
-        queue = q.partition(':')[2]
+        queue = q.partition(b':')[2]
         args_key = MESSAGES_KEY + queue
         pipeline.hget(args_key, id)
         pipeline.hdel(args_key, id)
@@ -216,6 +281,8 @@ def _get_work(conn, queues=None, timeout=1):
             continue
 
         # return the work item
+        if PY3:
+            message = message.decode('latin-1')
         work = json.loads(message)
         item_id = work[0]
         # some annoying legacy stuff...
@@ -359,7 +426,7 @@ class _Task(object):
         self.save_results = max(save_results, 0)
         if delay is None:
             pass
-        elif isinstance(delay, (int, long, float)):
+        elif isinstance(delay, _number_types):
             if not low_delay_okay:
                 _assert(delay >= MINIMUM_DELAY,
                     "periodic delay must be at least %r seconds, you provided %r",
@@ -374,6 +441,7 @@ class _Task(object):
             _assert(False,
                 "Provided run_every or crontab argument value of %r not supported",
                 delay)
+
         self.delay = delay
         if never_skip:
             NEVER_SKIP.add(name)
@@ -385,6 +453,7 @@ class _Task(object):
             execute_delay = self.next()
             if execute_delay is not None:
                 self.execute(delay=execute_delay, taskid=self.name)
+
     def __call__(self, taskid=None, nowarn=False):
         '''
         This wraps the function in an _ExecutingTask so as to offer reasonable
@@ -393,6 +462,7 @@ class _Task(object):
         if not taskid and not nowarn:
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
+
     def next(self, now=None):
         '''
         Calculates the next run time of recurring tasks.
@@ -403,6 +473,7 @@ class _Task(object):
         if isinstance(self.delay, CronTab):
             return self.delay.next(now)
         return self.delay
+
     def execute(self, *args, **kwargs):
         '''
         Invoke this task with the given arguments inside a task processor.
@@ -418,6 +489,7 @@ class _Task(object):
             kwargs['_attempts'] = self.attempts
         taskid = _enqueue_call(conn, self.queue, self.name, args, kwargs, delay, taskid=taskid)
         return _EnqueuedTask(self.name, taskid, self.queue)
+
     def retry(self, *args, **kwargs):
         '''
         Invoke this task as a retry with the given arguments inside a task
@@ -430,6 +502,7 @@ class _Task(object):
         if self.retry_delay > 0 and 'delay' not in kwargs:
             kwargs['delay'] = self.retry_delay
         return self.execute(*args, **kwargs)
+
     def __repr__(self):
         return "<Task function=%s>"%(self.name,)
 
@@ -440,9 +513,10 @@ class _ExecutingTask(object):
     __slots__ = 'task', 'taskid', 'args', 'kwargs'
     def __init__(self, task, taskid):
         self.task = task
-        self.taskid = taskid
+        self.taskid = taskid.encode('latin-1') if PY3 else taskid
         self.args = None
         self.kwargs = None
+
     def __call__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
@@ -453,6 +527,7 @@ class _ExecutingTask(object):
                 json.dumps(result),
                 self.task.save_results,
             )
+
     def __repr__(self):
         return "<ExecutingTask taskid=%s function=%s args=%r kwargs=%r>"%(
             self.taskid, self.task.name, self.args, self.kwargs)
@@ -466,6 +541,7 @@ class _EnqueuedTask(object):
         self.name = name
         self.taskid = taskid
         self.queue = queue
+
     @property
     def args(self):
         '''
@@ -477,6 +553,7 @@ class _EnqueuedTask(object):
         if not args:
             return "<already executed>"
         return args
+
     @property
     def status(self):
         '''
@@ -491,11 +568,13 @@ class _EnqueuedTask(object):
         elif eta <= time.time():
             return "late"
         return "early"
+
     def cancel(self):
         '''
         Cancel the task, if it has not been executed yet.
         '''
         return delete_item(self.queue, self.taskid)
+
     def wait(self, timeout=30):
         '''
         Will wait up to the specified timeout for the task to start execution,
@@ -505,12 +584,15 @@ class _EnqueuedTask(object):
         while self.status != 'done' and end > time.time():
             time.sleep(.01)
         return self.status == 'done'
+
     @property
     def result(self):
         '''
         Get the value returned by the task.
         '''
-        return json.loads(get_connection().get(RESULT_KEY + self.taskid) or 'null')
+        tid = self.taskid.encode('latin-1') if PY3 else self.taskid
+        return json.loads((get_connection().get(RESULT_KEY + tid) or b'null').decode('latin-1'))
+
     def __repr__(self):
         return "<EnqueuedTask taskid=%s queue=%s function=%s status=%s>"%(
             self.taskid, self.queue, self.name, self.status)
@@ -562,11 +644,11 @@ def task(*args, **kwargs):
         def function2(arg1, arg2, ...):
             'will execute from within the 'default' queue.'
     '''
-    queue = kwargs.pop('queue', None) or 'default'
+    queue = kwargs.pop('queue', None) or b'default'
     attempts = kwargs.pop('attempts', None) or 1
     retry_delay = max(kwargs.pop('retry_delay', 30), 0)
     save_results = max(kwargs.pop('save_results', 0), 0)
-    assert isinstance(queue, str)
+    assert isinstance(queue, bytes)
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
@@ -575,8 +657,12 @@ def task(*args, **kwargs):
     return decorate
 
 _to_seconds = lambda td: td.days * 86400 + td.seconds + td.microseconds / 1000000.
+_number_types = (int, float, )
+if not PY3:
+    _number_types += (long,)
+_number_types_plus = _number_types + (datetime.timedelta,)
 
-def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
+def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
     '''
     Decorator to allow the automatic repeated execution of a function every
     run_every seconds, which can be provided via int, long, float, or via a
@@ -613,9 +699,9 @@ def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retr
     seconds after the current time (it skips any missed scheduled time).
 
     '''
-    _assert(isinstance(queue, str),
+    _assert(isinstance(queue, bytes),
         "queue name provided must be a string, not %r", queue)
-    _assert(isinstance(run_every, (int, long, float, datetime.timedelta)),
+    _assert(isinstance(run_every, _number_types_plus),
         "run_every provided must be an int, long, float, or timedelta, not %r",
         run_every)
     if isinstance(run_every, datetime.timedelta):
@@ -633,7 +719,7 @@ def periodic_task(run_every, queue='default', never_skip=False, attempts=1, retr
             save_results=save_results)
     return decorate
 
-def cron_task(crontab, queue='default', never_skip=False, attempts=1, retry_delay=30, save_results=0):
+def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_delay=30, save_results=0):
     if not CronTab.__slots__:
         raise Exception("You must have the 'crontab' module installed to use @cron_task")
     '''
@@ -666,8 +752,7 @@ def cron_task(crontab, queue='default', never_skip=False, attempts=1, retry_dela
     def decorate(function):
         name = '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
-                     attempts=attempts, retry_delay=retry_delay,
-                     save_results=save_results)
+                     attempts=attempts, retry_delay=retry_delay)
     return decorate
 
 PREVIOUS = None
@@ -909,7 +994,7 @@ def print_rows(rows, use_header):
     else:
         fmt = '  '.join('%s' for i in xrange(len(rows[0])))
     for row in rows:
-        print fmt%tuple(row)
+        print(fmt%tuple(row))
 
 from optparse import OptionGroup, OptionParser
 parser = OptionParser(usage='''
@@ -941,6 +1026,9 @@ if redis.__version__ >= '2.4':
         help='The unix path to connect to Redis with (use unix path OR host/port, not both')
 cgroup.add_option('--timeout', dest='timeout', action='store', type='int', default=30,
     help='How long to wait for a connection or command to succeed or fail')
+cgroup.add_option('--prefix', default=None,
+    help=('Provide a prefix to keys, allowing for multiple rpqueue runtimes in '
+          'the same Redis db without worrying about queue names'))
 
 if __name__ == '__main__':
 
@@ -975,24 +1063,26 @@ if __name__ == '__main__':
     options, args = parser.parse_args()
     if options.pwprompt:
         if options.passwd:
-            print "You must pass either --password OR --pwprompt not both."
+            print("You must pass either --password OR --pwprompt not both.")
             sys.exit(1)
         import getpass
         options.passwd = getpass.getpass()
 
+    if options.prefix:
+        set_key_prefix(options.prefix)
     set_redis_connection_settings(options.host, options.port, options.db,
         options.passwd, options.timeout, getattr(options, 'unixpath', None))
 
     if (options.clear or options.page or options.delete) and not options.queue:
-        print "You must provide '--queue <queuename>' with that command"
+        print("You must provide '--queue <queuename>' with that command")
         sys.exit(1)
     if (bool(options.clear) + bool(options.page) + bool(options.delete)) > 1:
-        print "You can choose at most one of --clear, --page, or --delete"
+        print("You can choose at most one of --clear, --page, or --delete")
         sys.exit(1)
 
     if options.clear:
         items = clear_queue(options.queue)
-        print "Queue %r cleared of %i items."%(options.queue, items)
+        print("Queue %r cleared of %i items."%(options.queue, items))
     elif options.queue and not options.delete:
         items = get_page(options.queue, options.page)
         out = []
@@ -1009,9 +1099,9 @@ if __name__ == '__main__':
         print_rows(out, not options.skip)
     elif options.delete:
         if delete_item(options.queue, options.delete):
-            print "Deleted item:", options.delete
+            print("Deleted item:", options.delete)
         else:
-            print "Item not found"
+            print("Item not found")
             sys.exit(1)
     else:
         known = queue_sizes()

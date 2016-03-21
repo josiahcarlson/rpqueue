@@ -1,4 +1,5 @@
 
+from __future__ import print_function
 import sys
 
 import rpqueue
@@ -28,28 +29,30 @@ if __name__ == '__main__':
     rpqueue.parser.add_option_group(rpqueue.cgroup)
     rpqueue.parser.add_option_group(rgroup)
     options, args = rpqueue.parser.parse_args()
+    if options.prefix:
+        rpqueue.set_key_prefix(options.prefix)
 
     rpqueue.set_redis_connection_settings(options.host, options.port, options.db,
         options.passwd, options.timeout, getattr(options, 'unixpath', None))
 
     if not options.run:
-        print "You must pass --module"
+        print("You must pass --module")
         sys.exit(1)
     if options.threads < 1:
-        print "You must have at least 1 thread, you gave %s"%(options.threads,)
+        print("You must have at least 1 thread, you gave %s"%(options.threads,))
         sys.exit(1)
     if options.processes < 1:
-        print "You must have at least 1 process, you gave %s"%(options.threads,)
+        print("You must have at least 1 process, you gave %s"%(options.threads,))
         sys.exit(1)
     if options.wait < 0:
-        print "You must provide a non-negative wait, you provided %r"%(options.wait,)
+        print("You must provide a non-negative wait, you provided %r"%(options.wait,))
         sys.exit(1)
     LOG_LEVELS = rpqueue.LOG_LEVELS
     if options.loglevel.upper() not in LOG_LEVELS:
-        print "You must choose a valid log level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),)
+        print("You must choose a valid log level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),))
         sys.exit(1)
     if options.successlevel.upper() not in LOG_LEVELS:
-        print "You must choose a valid success level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),)
+        print("You must choose a valid success level from one of: %s"%(list(sorted(LOG_LEVELS, key=lambda x:x[2:])),))
         sys.exit(1)
     import imp
     # used for the side-effect if it can't be found
