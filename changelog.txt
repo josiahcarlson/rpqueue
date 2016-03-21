@@ -1,3 +1,5 @@
+#---------------------------------- 0.25.1 -----------------------------------
+[fixed] actually apply cron task fix :P
 #---------------------------------- 0.25.0 -----------------------------------
 [fixed] cron tasks will now save the results of their execution if requested,
     the argument to make this happen was mistakenly not passed onto the class
