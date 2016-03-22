@@ -494,6 +494,9 @@ class _Task(object):
         '''
         Invoke this task as a retry with the given arguments inside a task
         processor.
+
+        To retry, the task must accept ``_attempts`` as a parameter, either
+        directly or via ``**kwargs``.
         '''
         attempts = max(kwargs.pop('_attempts', 0), 0) - 1
         if attempts < 1:
@@ -588,10 +591,11 @@ class _EnqueuedTask(object):
     @property
     def result(self):
         '''
-        Get the value returned by the task.
+        Get the value returned by the task. Requires task.save_results > 0.
+
+        See :py:function:``result(taskid)``
         '''
-        tid = self.taskid.encode('latin-1') if PY3 else self.taskid
-        return json.loads((get_connection().get(RESULT_KEY + tid) or b'null').decode('latin-1'))
+        return result(self.taskid)
 
     def __repr__(self):
         return "<EnqueuedTask taskid=%s queue=%s function=%s status=%s>"%(
@@ -936,6 +940,31 @@ def clear_queue(queue, conn=None, delete=False):
         pipeline.srem(QUEUES_KNOWN, queue)
         pipeline.zrem(QUEUES_PRIORITY, queue)
     return pipeline.execute()[0]
+
+def get_task(name):
+    '''Get a task dynamically by name. The task's module must be loaded first.'''
+    return REGISTRY.get(name)
+
+def result(taskid,conn=None):
+    '''Get the result of a remotely executing task from only its taskid.
+
+    If a task is configured with save_results>0, any remote execution of that task
+    will save its return value to expire after that many seconds.
+
+    These two ways of fetching the result are equivalent:
+    ::
+        remote = task.execute()
+        # some concurrent logic
+        result = remote.result
+
+        remote_taskid = conn.get('taskid')
+        result = rpqueue.result(taskid,conn=conn)
+
+    see :py:attribute:``_EnqueuedTask.result``
+    '''
+    conn = conn or get_connection()
+    if PY3: taskid = taskid.encode('latin-1')
+    return json.loads((conn.get(RESULT_KEY + tid) or b'null').decode('latin-1'))
 
 _BAD_ITEM = (None, '<unknown>', '<unknown>', '<unknown>')
 _DONE_ITEM = (None, '<done>', '<done>', '<done>')
