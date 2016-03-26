@@ -65,6 +65,10 @@ def wait_test(n):
     time.sleep(n)
     return n
 
+@rpqueue.task(queue=queue, save_results=30)
+def result_test(n):
+    return n
+
 global_wait_test = wait_test
 
 scale = 1000
@@ -209,6 +213,15 @@ class TestRPQueue(unittest.TestCase):
         # wait for the runner to quit
         t1.join()
         t2.join()
+
+    def test_queue_override(self):
+        t = result_test.execute(5)
+        time.sleep(1)
+        self.assertEquals(t.result, 5)
+
+        t = result_test.execute(6, _queue=queue + b'2')
+        time.sleep(1)
+        self.assertEquals(t.result, None)
 
 if __name__ == '__main__':
     unittest.main()
