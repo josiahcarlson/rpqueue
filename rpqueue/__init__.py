@@ -3,7 +3,7 @@
 rpqueue (Redis Priority Queue)
 
 Originally written July 5, 2011
-Copyright 2011-2015 Josiah Carlson
+Copyright 2011-2016 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -42,13 +42,23 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
+VERSION = '0.25.2'
+
 RPQUEUE_CONFIGS = {}
+
+__all__ = ['VERSION', 'new_rpqueue', 'set_key_prefix',
+    'set_redis_connection_settings', 'set_redis_connection',
+    'task', 'periodic_task', 'cron_task', 'Task',
+    'get_task', 'result', 'results',
+    'set_priority', 'known_queues', 'queue_sizes', 'clear_queue',
+    'execute_tasks', 'SimpleLock', 'NoLock', 'script_load']
 
 def new_rpqueue(name, pfix=None):
     '''
     Creates a new rpqueue state for running separate rpqueue task systems in the
-    same codebase. Simplifies for multiple Redis servers, and allows for using
-    the same Redis server without using queue names (just use a 'prefix').
+    same codebase. This simplifies configuration for multiple Redis servers, and
+    allows for using the same Redis server without using queue names (provide a
+    'prefix' for all RPqueue-related keys).
     '''
     # I had planned on building a class to embed state, etc., then I decided to
     # use the hack I'd already advised someone else to do. Warning: here there
@@ -406,10 +416,11 @@ def _handle_delayed(conn, queues=None, timeout=1, impl=[]):
 
     impl[0](conn, queues, timeout)
 
-class _Task(object):
+class Task(object):
     '''
     An object that represents a task to be executed. These will replace
-    functions in modules.
+    functions when any of the ``@task``, ``@periodic_task``, or ``@cron_task``
+    decorators have been applied to a function.
     '''
     __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay', 'save_results'
     def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
@@ -457,7 +468,8 @@ class _Task(object):
     def __call__(self, taskid=None, nowarn=False):
         '''
         This wraps the function in an _ExecutingTask so as to offer reasonable
-        introspection upon potential exception.
+        introspection upon potential exception. If you want to execute the
+        original function inline, use: ``my_task.function(...)`` .
         '''
         if not taskid and not nowarn:
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
@@ -477,9 +489,20 @@ class _Task(object):
     def execute(self, *args, **kwargs):
         '''
         Invoke this task with the given arguments inside a task processor.
+
+        Optional arguments:
+
+            * *delay* - how long to delay the execution of this task for, in
+              seconds
+            * *taskid* - override the taskid on this call, can be used to choose
+              a destination key for the results (be careful!)
+            * *_queue* - override the queue to be used in this call, which can
+              be used to alter priorities of individual calls when coupled with
+              queue priorities
         '''
         delay = kwargs.pop('delay', None) or 0
         taskid = kwargs.pop('taskid', None)
+        _queue = kwargs.pop('_queue', None) or self.queue
         conn = get_connection()
         if kwargs.pop('execute_inline_now', None):
             # allow for testing/debugging to execute the task immediately
@@ -487,8 +510,8 @@ class _Task(object):
             return
         if self.attempts > 1 and '_attempts' not in kwargs:
             kwargs['_attempts'] = self.attempts
-        taskid = _enqueue_call(conn, self.queue, self.name, args, kwargs, delay, taskid=taskid)
-        return _EnqueuedTask(self.name, taskid, self.queue)
+        taskid = _enqueue_call(conn, _queue , self.name, args, kwargs, delay, taskid=taskid)
+        return _EnqueuedTask(self.name, taskid, _queue)
 
     def retry(self, *args, **kwargs):
         '''
@@ -508,6 +531,8 @@ class _Task(object):
 
     def __repr__(self):
         return "<Task function=%s>"%(self.name,)
+
+_Task = Task
 
 class _ExecutingTask(object):
     '''
@@ -595,14 +620,14 @@ class _EnqueuedTask(object):
 
         See :py:function:``result(taskid)``
         '''
-        return result(self.taskid)
+        return results([self.taskid])[0]
 
     def __repr__(self):
         return "<EnqueuedTask taskid=%s queue=%s function=%s status=%s>"%(
             self.taskid, self.queue, self.name, self.status)
 
 class NoLock(Exception):
-    pass
+    "Raised when a lock cannot be acquired"
 
 class SimpleLock(object):
     '''
@@ -612,6 +637,8 @@ class SimpleLock(object):
     If Redis had a "setnxex key value ttl" that set the 'key' to 'value' if it
     wasn't already set, and also set the expiration to 'ttl', this lock
     wouldn't exist.
+
+    (Redis now has this functionality, but we need to support legacy)
     '''
     def __init__(self, conn, name, duration=1):
         self.conn = conn
@@ -633,6 +660,7 @@ class SimpleLock(object):
         if type is None:
             self.conn.zrem(LOCK_KEY, self.name)
     def refresh(self):
+        'Refreshes a lock'
         self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration})
 
 def task(*args, **kwargs):
@@ -724,8 +752,6 @@ def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, ret
     return decorate
 
 def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_delay=30, save_results=0):
-    if not CronTab.__slots__:
-        raise Exception("You must have the 'crontab' module installed to use @cron_task")
     '''
     Decorator to allow the automatic repeated execution of a function
     on a schedule with a crontab syntax. Crontab syntax provided by the
@@ -748,6 +774,9 @@ def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_del
     Please see the crontab package documentation or the crontab Wikipedia
     page for more information on the meaning of the schedule.
     '''
+    if not CronTab.__slots__:
+        raise Exception("You must have the 'crontab' module installed to use @cron_task")
+
     _assert(isinstance(queue, str),
         "queue name provided must be a string, not %r", queue)
     _assert(isinstance(crontab, str),
@@ -945,26 +974,51 @@ def get_task(name):
     '''Get a task dynamically by name. The task's module must be loaded first.'''
     return REGISTRY.get(name)
 
-def result(taskid,conn=None):
-    '''Get the result of a remotely executing task from only its taskid.
+def result(taskid, conn=None):
+    '''
+    Get the results of remotely executing tasks from one or more taskids.
 
     If a task is configured with save_results>0, any remote execution of that task
     will save its return value to expire after that many seconds.
 
-    These two ways of fetching the result are equivalent:
-    ::
-        remote = task.execute()
-        # some concurrent logic
-        result = remote.result
+    These two ways of fetching the result are equivalent::
 
-        remote_taskid = conn.get('taskid')
-        result = rpqueue.result(taskid,conn=conn)
+        >>> remote = task.execute()
+        >>> # some concurrent logic
+        >>> result = remote.result
 
-    see :py:attribute:``_EnqueuedTask.result``
+        >>> taskid = task.execute().taskid
+        >>> # some concurrent logic
+        >>> result = rpqueue.result(taskid)
+
+    .. note:: If you have more than one taskid whose results you want to fetch,
+        check out ``rpqueue.results()`` below.
+    '''
+    return results([taskid], conn=conn)[0]
+
+def results(taskids, conn=None):
+    '''Get the results of remotely executing tasks from one or more taskids.
+
+    If a task is configured with save_results>0, any remote execution of that task
+    will save its return value to expire after that many seconds.
+
+    These two ways of fetching the result are equivalent::
+
+        >>> remote = [t.execute() for t in tasks]
+        >>> # some concurrent logic
+        >>> results = [r.result for r in remote]
+
+        >>> taskids = [t.execute().taskid for t in tasks]
+        >>> # some concurrent logic
+        >>> results = rpqueue.results(taskids)
+
     '''
     conn = conn or get_connection()
-    if PY3: taskid = taskid.encode('latin-1')
-    return json.loads((conn.get(RESULT_KEY + tid) or b'null').decode('latin-1'))
+    if PY3:
+        taskids = [tid.encode('latin-1') for tid in taskids]
+
+    results = conn.mget([RESULT_KEY + tid for tid in taskids])
+    return [(json.loads(r.decode('latin-1')) if r else None) for r in results]
 
 _BAD_ITEM = (None, '<unknown>', '<unknown>', '<unknown>')
 _DONE_ITEM = (None, '<done>', '<done>', '<done>')

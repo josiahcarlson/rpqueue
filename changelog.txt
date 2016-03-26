@@ -1,3 +1,10 @@
+#---------------------------------- 0.25.2 -----------------------------------
+[added] result() function to get the result of a previously-known taskid, and
+    get_task() utility function for getting a task by name. Thanks to Github
+    user https://github.com/jpassaro for the initial PR.
+[added] results() function for fetching multiple results
+[added] real sphinx docs for the package available:
+    https://pythonhosted.org/rpqueue/
 #---------------------------------- 0.25.1 -----------------------------------
 [fixed] actually apply cron task fix :P
 #---------------------------------- 0.25.0 -----------------------------------

@@ -11,6 +11,8 @@ is, it attempts to execute every task once. If the task raises an exception,
 it will not automatically retry, but you can manually retry the task and
 specify the maximum attempts. See the `Retries`_ section below.
 
+Full documentation is available: `https://pythonhosted.org/rpqueue/
+<https://pythonhosted.org/rpqueue/>`_
 
 Getting started
 ===============
