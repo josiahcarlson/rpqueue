@@ -1,4 +1,6 @@
 #---------------------------------- 0.25.2 -----------------------------------
+[fixed] added missing VERSION file
+#---------------------------------- 0.25.2 -----------------------------------
 [added] result() function to get the result of a previously-known taskid, and
     get_task() utility function for getting a task by name. Thanks to Github
     user https://github.com/jpassaro for the initial PR.
