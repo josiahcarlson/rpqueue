@@ -7,7 +7,7 @@ import rpqueue
 if __name__ == '__main__':
     from optparse import OptionGroup
     rpqueue.parser.usage = '''
-    %prog [connection options] --run <module> [run options] [queues]
+    %prog [connection options] --module <module> [run options] [queues]
         -> start a queue processor with the given options'''
     rgroup = OptionGroup(rpqueue.parser, "Run Options")
     rgroup.add_option('--module', dest='run', action='store', default=None,
