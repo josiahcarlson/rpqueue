@@ -142,6 +142,8 @@ log_handler = logging.root
 SUCCESS_LOG_LEVEL = 'debug'
 AFTER_FORK = None
 
+CURRENT_TASK = threading.local()
+
 def _assert(condition, message, *args):
     if not condition:
         raise ValueError(message%args)
@@ -548,7 +550,9 @@ class _ExecutingTask(object):
     def __call__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+        CURRENT_TASK.task = self
         result = self.task.function(*args, **kwargs)
+        del CURRENT_TASK.task
         if self.task.save_results > 0:
             get_connection().setex(
                 RESULT_KEY + self.taskid,
