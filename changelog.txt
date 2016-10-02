@@ -1,3 +1,6 @@
+#---------------------------------- 0.25.6 -----------------------------------
+[added] access to current task object via rpqueue.CURRENT_TASK.task, PR thanks
+    to github user https://github.com/jpassaro
 #---------------------------------- 0.25.2 -----------------------------------
 [fixed] added missing VERSION file
 #---------------------------------- 0.25.2 -----------------------------------
