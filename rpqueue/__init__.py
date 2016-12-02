@@ -684,9 +684,10 @@ def task(*args, **kwargs):
     attempts = kwargs.pop('attempts', None) or 1
     retry_delay = max(kwargs.pop('retry_delay', 30), 0)
     save_results = max(kwargs.pop('save_results', 0), 0)
+    name = kwargs.pop('name', None)
     assert isinstance(queue, bytes)
     def decorate(function):
-        name = '%s.%s'%(function.__module__, function.__name__)
+        name = name or '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
     if args:
         return decorate(args[0])
@@ -748,8 +749,9 @@ def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, ret
             MINIMUM_DELAY, run_every)
     else:
         run_every = max(run_every, 0)
+    name = kwargs.pop('name', None)
     def decorate(function):
-        name = '%s.%s'%(function.__module__, function.__name__)
+        name = name or '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=run_every, never_skip=never_skip,
             attempts=attempts, retry_delay=retry_delay, low_delay_okay=low_delay_okay,
             save_results=save_results)
@@ -786,8 +788,9 @@ def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_del
     _assert(isinstance(crontab, str),
         "crontab provided must be a string, not %r", crontab)
     crontab = CronTab(crontab)
+    name = kwargs.pop('name', None)
     def decorate(function):
-        name = '%s.%s'%(function.__module__, function.__name__)
+        name = name or '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
                      attempts=attempts, retry_delay=retry_delay, save_results=save_results)
     return decorate
