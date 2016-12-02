@@ -1,3 +1,18 @@
+#---------------------------------- 0.26.0 -----------------------------------
+[added] one more status level, 'started' for when a task has been removed from
+    the queue (status information is only persisted for at most 60 seconds
+    after the item has begun executing, though can be refreshed by checking
+    item status)
+[fixed] using rpqueue.set_connection_prefix() now works properly
+[added] ability to execute a task in another "instanced" rpqueue (via:
+    my_task.execute(..., _rpqueue_module=...) ; status and results work as
+    expected). Identically named task assumed to be defined on the other side.
+[fixed] instanced rpqueues (rpqueue.new_rpqueue(...)) are now properly stored
+    inside the configs dictionary :/
+[added] more information returned by task cancellation
+[changed] added the ability to override the "name" of a task, for cases where
+    imports are not quite sane. Initial PR/idea thanks to Github user
+    https://github.com/erik
 #---------------------------------- 0.25.6 -----------------------------------
 [added] access to current task object via rpqueue.CURRENT_TASK.task, PR thanks
     to github user https://github.com/jpassaro

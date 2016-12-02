@@ -42,7 +42,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.25.6'
+VERSION = '0.26.0'
 
 RPQUEUE_CONFIGS = {}
 
@@ -59,6 +59,9 @@ def new_rpqueue(name, pfix=None):
     same codebase. This simplifies configuration for multiple Redis servers, and
     allows for using the same Redis server without using queue names (provide a
     'prefix' for all RPqueue-related keys).
+
+    If an rpqueue with the same name already exists, and has the same prefix,
+    return that rpqueue module.
     '''
     # I had planned on building a class to embed state, etc., then I decided to
     # use the hack I'd already advised someone else to do. Warning: here there
@@ -68,8 +71,11 @@ def new_rpqueue(name, pfix=None):
     # copy the original rpqueue out, that's our registry
     root = sys.modules[__name__]
     configs = root.RPQUEUE_CONFIGS
+    pfix = pfix or b''
     if name in configs:
-        raise Exception("Rpqueue config name %r already exists!"%(name,))
+        if pfix != configs[name].KEY_PREFIX:
+            raise Exception("Rpqueue config name %r already exists with a different prefix!"%(name,))
+        return configs[name]
 
     # make a new module
     nr = types.ModuleType(__name__)
@@ -83,6 +89,7 @@ def new_rpqueue(name, pfix=None):
     if pfix:
         # update the prefix, as necessary
         nr.set_key_prefix(pfix)
+    configs[name] = nr
     return nr
 
 # Also super lazy, but I am being lazy tonight.
@@ -111,6 +118,7 @@ SEEN_KEY = _NAME_KEYS['SEEN_KEY']
 LOCK_KEY = _NAME_KEYS['LOCK_KEY']
 RESULT_KEY = _NAME_KEYS['RESULT_KEY']
 FINISHED_KEY = _NAME_KEYS['FINISHED_KEY']
+KEY_PREFIX = b''
 
 def set_key_prefix(pfix):
     '''
@@ -121,6 +129,8 @@ def set_key_prefix(pfix):
     if PY3 and isinstance(pfix, str):
         pfix = pfix.encode('latin-1')
     globals().update((k, pfix+v) for k, v in _NAME_KEYS.items())
+    global KEY_PREFIX
+    KEY_PREFIX = pfix
 
 PY3 = sys.version_info >= (3, 0)
 REGISTRY = {}
@@ -250,6 +260,7 @@ def _get_work(conn, queues=None, timeout=1):
     Internal implementation detail of call queue removal. You shouldn't need
     to call this function directly.
     '''
+    lkp = len(KEY_PREFIX)
     # find the set of queues for processing
     pipeline = conn.pipeline(True)
     if not queues:
@@ -279,11 +290,11 @@ def _get_work(conn, queues=None, timeout=1):
             item = conn.blpop(queues, iremain)
 
         if not item:
-            # couldn't find work
+            # couldn't find work.
             continue
 
         q, id = item
-        queue = q.partition(b':')[2]
+        queue = q[lkp:].partition(b':')[2]
         args_key = MESSAGES_KEY + queue
         pipeline.hget(args_key, id)
         pipeline.hdel(args_key, id)
@@ -505,15 +516,29 @@ class Task(object):
         delay = kwargs.pop('delay', None) or 0
         taskid = kwargs.pop('taskid', None)
         _queue = kwargs.pop('_queue', None) or self.queue
-        conn = get_connection()
-        if kwargs.pop('execute_inline_now', None):
-            # allow for testing/debugging to execute the task immediately
-            _execute_task([None, self.name, args, kwargs, 0], conn)
-            return
         if self.attempts > 1 and '_attempts' not in kwargs:
             kwargs['_attempts'] = self.attempts
-        taskid = _enqueue_call(conn, _queue , self.name, args, kwargs, delay, taskid=taskid)
-        return _EnqueuedTask(self.name, taskid, _queue)
+
+        rpq = None
+        if '_rpqueue_module' in kwargs:
+            rpq = kwargs.pop('_rpqueue_module')
+            ec = rpq._enqueue_call
+            conn = rpq.get_connection()
+            et = rpq._execute_task
+            enq = rpq._EnqueuedTask
+        else:
+            ec = _enqueue_call
+            conn = get_connection()
+            et = _execute_task
+            enq = _EnqueuedTask
+
+        if kwargs.pop('execute_inline_now', None):
+            # allow for testing/debugging to execute the task immediately
+            et([None, self.name, args, kwargs, 0], conn)
+            return
+
+        taskid = ec(conn, _queue , self.name, args, kwargs, delay, taskid=taskid)
+        return enq(self.name, taskid, _queue, self)
 
     def retry(self, *args, **kwargs):
         '''
@@ -551,14 +576,26 @@ class _ExecutingTask(object):
         self.args = args
         self.kwargs = kwargs
         CURRENT_TASK.task = self
-        result = self.task.function(*args, **kwargs)
+        k = RESULT_KEY + self.taskid
+        want_status = self.taskid not in REGISTRY
+        conn = get_connection()
+        if want_status:
+            conn.setex(k, '', 60)
+
+        try:
+            result = self.task.function(*args, **kwargs)
+        except:
+            if want_status:
+                conn.delete(k)
+            raise
         del CURRENT_TASK.task
         if self.task.save_results > 0:
-            get_connection().setex(
-                RESULT_KEY + self.taskid,
+            conn.setex(k,
                 json.dumps(result),
                 self.task.save_results,
             )
+        elif want_status:
+            conn.delete(k)
 
     def __repr__(self):
         return "<ExecutingTask taskid=%s function=%s args=%r kwargs=%r>"%(
@@ -568,20 +605,19 @@ class _EnqueuedTask(object):
     '''
     An object that allows for simple status checks on tasks to be executed.
     '''
-    __slots__ = 'name', 'taskid', 'queue'
-    def __init__(self, name, taskid, queue):
+    __slots__ = 'name', 'taskid', 'queue', 'task'
+    def __init__(self, name, taskid, queue, task=None):
         self.name = name
         self.taskid = taskid
         self.queue = queue
+        self.task = task if task else REGISTRY.get(name)
 
     @property
     def args(self):
         '''
         Get the arguments that were passed to this task.
         '''
-        queue = MESSAGES_KEY + self.queue
-        conn = get_connection()
-        args = conn.hget(queue, self.taskid)
+        args = get_connection().hget(MESSAGES_KEY + self.queue, self.taskid)
         if not args:
             return "<already executed>"
         return args
@@ -592,10 +628,21 @@ class _EnqueuedTask(object):
         Get the status of this task.
         '''
         conn = get_connection()
+        pipe = conn.pipeline(True)
         eta = conn.zscore(QUEUE_KEY + self.queue, self.taskid)
         if eta is None:
             if conn.hexists(MESSAGES_KEY + self.queue, self.taskid):
                 return "waiting"
+
+            tid = self.taskid
+            if PY3 and isinstance(tid, str):
+                tid = tid.encode('latin-1')
+
+            exp = self.task.save_results if self.task and self.task.save_results > 0 else 60
+            k = RESULT_KEY + tid
+            if pipe.expire(k, exp).get(k).execute()[-1] == '':
+                return "started"
+
             return "done"
         elif eta <= time.time():
             return "late"
@@ -604,6 +651,11 @@ class _EnqueuedTask(object):
     def cancel(self):
         '''
         Cancel the task, if it has not been executed yet.
+
+        Returns True if the cancellation was successful.
+        Returns False if no information about task cancellation is known.
+        Returns -1 if the task executed, saved a result, and the result was
+        deleted.
         '''
         return delete_item(self.queue, self.taskid)
 
@@ -687,8 +739,8 @@ def task(*args, **kwargs):
     name = kwargs.pop('name', None)
     assert isinstance(queue, bytes)
     def decorate(function):
-        name = name or '%s.%s'%(function.__module__, function.__name__)
-        return _Task(queue, name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
+        _name = name or '%s.%s'%(function.__module__, function.__name__)
+        return _Task(queue, _name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
     if args:
         return decorate(args[0])
     return decorate
@@ -699,7 +751,7 @@ if not PY3:
     _number_types += (long,)
 _number_types_plus = _number_types + (datetime.timedelta,)
 
-def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
+def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0, name=None):
     '''
     Decorator to allow the automatic repeated execution of a function every
     run_every seconds, which can be provided via int, long, float, or via a
@@ -749,15 +801,14 @@ def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, ret
             MINIMUM_DELAY, run_every)
     else:
         run_every = max(run_every, 0)
-    name = kwargs.pop('name', None)
     def decorate(function):
-        name = name or '%s.%s'%(function.__module__, function.__name__)
-        return _Task(queue, name, function, delay=run_every, never_skip=never_skip,
+        _name = name or '%s.%s'%(function.__module__, function.__name__)
+        return _Task(queue, _name, function, delay=run_every, never_skip=never_skip,
             attempts=attempts, retry_delay=retry_delay, low_delay_okay=low_delay_okay,
             save_results=save_results)
     return decorate
 
-def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_delay=30, save_results=0):
+def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_delay=30, save_results=0, name=None):
     '''
     Decorator to allow the automatic repeated execution of a function
     on a schedule with a crontab syntax. Crontab syntax provided by the
@@ -788,10 +839,9 @@ def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_del
     _assert(isinstance(crontab, str),
         "crontab provided must be a string, not %r", crontab)
     crontab = CronTab(crontab)
-    name = kwargs.pop('name', None)
     def decorate(function):
-        name = name or '%s.%s'%(function.__module__, function.__name__)
-        return _Task(queue, name, function, delay=crontab, never_skip=never_skip,
+        _name = name or '%s.%s'%(function.__module__, function.__name__)
+        return _Task(queue, _name, function, delay=crontab, never_skip=never_skip,
                      attempts=attempts, retry_delay=retry_delay, save_results=save_results)
     return decorate
 
@@ -862,7 +912,7 @@ def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None)
         except:
             log_handler.exception("ERROR: Exception in AFTER_FORK function: %s", traceback.format_exc().rstrip())
     st = []
-    log_handler.info("PID %i executing tasks in %i threads", os.getpid(), threads)
+    log_handler.info("PID %i executing tasks in %i threads %s", os.getpid(), threads, MESSAGES_KEY)
     for t in xrange(threads-1):
         tt = threading.Thread(target=_execute_tasks, args=(queues,))
         tt.daemon = True
@@ -880,6 +930,7 @@ def _execute_tasks(queues=None):
         if not work:
             time.sleep(.05)
             continue
+
         _execute_task(work, conn)
 
 def _execute_task(work, conn):
@@ -1072,7 +1123,11 @@ def delete_item(queue, taskid, conn=None):
     pipeline.hdel(MESSAGES_KEY + queue, taskid)
     pipeline.zrem(RQUEUE_KEY + queue, taskid)
     pipeline.zrem(QUEUE_KEY + queue, taskid)
-    return any(pipeline.execute())
+    k = RESULT_KEY + taskid.encode('utf-8')
+    pipeline.get(k) # only count if was non-empty
+    pipeline.delete(k) # also delete its results, don't count
+    r = pipeline.execute()
+    return True if any(r[:3]) else (-1 if r[3] else False)
 
 def print_rows(rows, use_header):
     if not rows:
