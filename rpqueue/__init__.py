@@ -313,6 +313,9 @@ def _get_work(conn, queues=None, timeout=1):
             work.append(time.time())
         if item_id == work[1]:
             # periodic or cron task, re-schedule it
+            if item_id not in REGISTRY:
+                log_handler.debug("ERROR: Missing function %s in registry", item_id)
+                continue
             sch = work[-1] if item_id in NEVER_SKIP else time.time()
             delay = REGISTRY[item_id].next(sch)
             if delay is not None:
