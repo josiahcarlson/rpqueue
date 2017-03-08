@@ -3,7 +3,7 @@
 rpqueue (Redis Priority Queue)
 
 Originally written July 5, 2011
-Copyright 2011-2016 Josiah Carlson
+Copyright 2011-2017 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -42,7 +42,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.26.0'
+VERSION = '0.26.1'
 
 RPQUEUE_CONFIGS = {}
 

@@ -1,3 +1,7 @@
+#---------------------------------- 0.26.1 -----------------------------------
+[fixed] killing of all rpqueue worker threads if a cron/periodic task is
+    deleted from source; bug report and PR fixed thanks to github user
+    https://github.com/jpassaro
 #---------------------------------- 0.26.0 -----------------------------------
 [added] one more status level, 'started' for when a task has been removed from
     the queue (status information is only persisted for at most 60 seconds
