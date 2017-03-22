@@ -432,6 +432,10 @@ def _handle_delayed(conn, queues=None, timeout=1, impl=[]):
 
     impl[0](conn, queues, timeout)
 
+# Forces each task to be executed immediately inline, without relying on an
+# rpqueue server to read it off the queue. Useful e.g. in a testing context.
+GLOBAL_EXECUTE_INLINE = False
+
 class Task(object):
     '''
     An object that represents a task to be executed. These will replace
@@ -535,12 +539,14 @@ class Task(object):
             et = _execute_task
             enq = _EnqueuedTask
 
-        if kwargs.pop('execute_inline_now', None):
+        if kwargs.pop('execute_inline_now', GLOBAL_EXECUTE_INLINE):
             # allow for testing/debugging to execute the task immediately
-            et([None, self.name, args, kwargs, 0], conn)
-            return
+            taskid = taskid or str(uuid.uuid4())
+            et([taskid, self.name, args, kwargs, 0], conn)
+        else:
+            taskid = ec(conn, _queue , self.name, args, kwargs, delay,
+                        taskid=taskid)
 
-        taskid = ec(conn, _queue , self.name, args, kwargs, delay, taskid=taskid)
         return enq(self.name, taskid, _queue, self)
 
     def retry(self, *args, **kwargs):
