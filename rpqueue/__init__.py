@@ -42,7 +42,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.26.1'
+VERSION = '0.27.0'
 
 RPQUEUE_CONFIGS = {}
 
@@ -878,7 +878,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     processes = max(processes, 1)
     __import__(module) # for any connection modification side-effects
     log_handler.info("Starting %i subprocesses", processes)
-    for p in xrange(processes):
+    for p in range(processes):
         pp = multiprocessing.Process(target=execute_task_threads, args=(queues, threads_per_process, 1, module))
         pp.daemon = True
         pp.start()
@@ -890,7 +890,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     # wait some time for processes to die...
     end_time = threads_per_process * wait_per_thread + time.time()
     while end_time > time.time() and sp:
-        for i in xrange(len(sp)-1, -1, -1):
+        for i in range(len(sp)-1, -1, -1):
             sp[i].join(.01)
             if not sp[i].is_alive():
                 del sp[i]
@@ -916,7 +916,7 @@ def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None)
             log_handler.exception("ERROR: Exception in AFTER_FORK function: %s", traceback.format_exc().rstrip())
     st = []
     log_handler.info("PID %i executing tasks in %i threads %s", os.getpid(), threads, MESSAGES_KEY)
-    for t in xrange(threads-1):
+    for t in range(threads-1):
         tt = threading.Thread(target=_execute_tasks, args=(queues,))
         tt.daemon = True
         tt.start()
@@ -991,7 +991,7 @@ def known_queues(conn=None):
 
 def _window(size, seq):
     iterators = []
-    for i in xrange(size):
+    for i in range(size):
         iterators.append(itertools.islice(seq, i, len(seq), size))
     return itertools.izip(*iterators)
 
@@ -1140,7 +1140,7 @@ def print_rows(rows, use_header):
         rows.insert(1, [m*'-' for m in ml])
         fmt = '  '.join("%%-%is"%m for m in ml)
     else:
-        fmt = '  '.join('%s' for i in xrange(len(rows[0])))
+        fmt = '  '.join('%s' for i in range(len(rows[0])))
     for row in rows:
         print(fmt%tuple(row))
 

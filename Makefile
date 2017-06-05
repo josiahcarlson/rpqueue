@@ -31,6 +31,7 @@ test:
 	python3.3 -m tests.test_rpqueue
 	python3.4 -m tests.test_rpqueue
 	python3.5 -m tests.test_rpqueue
+	python3.6 -m tests.test_rpqueue
 
 upload:
 	git tag `cat VERSION`

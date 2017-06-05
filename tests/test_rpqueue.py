@@ -6,6 +6,7 @@ import time
 import unittest
 
 import rpqueue
+print("rpqueue test", rpqueue.__file__)
 rpqueue.log_handler.setLevel(rpqueue.logging.CRITICAL)
 
 queue = b'TEST_QUEUE'

@@ -1,3 +1,7 @@
+#---------------------------------- 0.27.0 -----------------------------------
+[fixed] apparently I had some leftover xranges that made rpqueue not Python 3
+    comptible. That is now fixed. Thanks to github user
+    https://github/mgraupner for the bug report
 #---------------------------------- 0.26.1 -----------------------------------
 [fixed] killing of all rpqueue worker threads if a cron/periodic task is
     deleted from source; bug report and PR fixed thanks to github user
