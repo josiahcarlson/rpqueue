@@ -186,7 +186,7 @@ def script_load(script):
     return call
 
 def set_redis_connection_settings(host='localhost', port=6379, db=0,
-    password=None, socket_timeout=30, unix_socket_path=None):
+    password=None, socket_timeout=30, unix_socket_path=None, ssl=False, ssl_ca_certs=None):
     '''
     Sets the global redis connection settings for the queue. If not called
     before use, will connect to localhost:6379 with no password and db 0.
