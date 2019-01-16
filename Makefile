@@ -36,10 +36,10 @@ test:
 upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python setup.py sdist upload
+	python3.6 setup.py sdist upload
 
 docs:
-	python -c "import rpqueue; open('VERSION', 'wb').write(rpqueue.VERSION);"
+	python3.6 -c "import rpqueue; open('VERSION', 'w').write(rpqueue.VERSION);"
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	cd _build/html/ && zip -r9 ../../rpqueue_docs.zip * && cd ../../
 	@echo
