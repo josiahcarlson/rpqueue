@@ -3,7 +3,7 @@
 rpqueue (Redis Priority Queue)
 
 Originally written July 5, 2011
-Copyright 2011-2017 Josiah Carlson
+Copyright 2011-2019 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -29,6 +29,7 @@ import threading
 import traceback
 import types
 import uuid
+import warnings
 
 try:
     from crontab import CronTab
@@ -36,22 +37,34 @@ except ImportError:
     class CronTab(object):
         __slots__ = ()
 
-
 import redis
+MED_CLIENT = redis.__version__ >= '2.6.'
+NEW_CLIENT = redis.__version__ >= '3.'
+
+def _zadd(conn, key, data):
+    if NEW_CLIENT:
+        return conn.zadd(key, data)
+    return conn.zadd(key, **data)
+
+def _setex(conn, key, value, time):
+    if MED_CLIENT:
+        return conn.setex(key, time, value)
+    return conn.setex(key, value, time)
 
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.27.1'
+VERSION = '0.30.0'
 
 RPQUEUE_CONFIGS = {}
 
 __all__ = ['VERSION', 'new_rpqueue', 'set_key_prefix',
     'set_redis_connection_settings', 'set_redis_connection',
-    'task', 'periodic_task', 'cron_task', 'Task',
+    'task', 'periodic_task', 'cron_task', 'Task', 'Data',
     'get_task', 'result', 'results',
     'set_priority', 'known_queues', 'queue_sizes', 'clear_queue',
     'execute_tasks', 'SimpleLock', 'NoLock', 'script_load']
+__all__.sort()
 
 def new_rpqueue(name, pfix=None):
     '''
@@ -105,6 +118,11 @@ _NAME_KEYS = dict(
     LOCK_KEY = b'locks:',
     RESULT_KEY = b'result:',
     FINISHED_KEY = b'finished:',
+    VISIBILITY_KEY = b'invisible:',
+    DATA_KEY = b'dataq:',
+    DATAM_KEY = b'dataqm:',
+    DATAV_KEY = b'dataqv:',
+
 )
 # silence Pyflakes
 QUEUES_KNOWN = _NAME_KEYS['QUEUES_KNOWN']
@@ -118,6 +136,10 @@ SEEN_KEY = _NAME_KEYS['SEEN_KEY']
 LOCK_KEY = _NAME_KEYS['LOCK_KEY']
 RESULT_KEY = _NAME_KEYS['RESULT_KEY']
 FINISHED_KEY = _NAME_KEYS['FINISHED_KEY']
+VISIBILITY_KEY = _NAME_KEYS['VISIBILITY_KEY']
+DATA_KEY = _NAME_KEYS['DATA_KEY']
+DATAM_KEY = _NAME_KEYS['DATAM_KEY']
+DATAV_KEY = _NAME_KEYS['DATAV_KEY']
 KEY_PREFIX = b''
 
 def set_key_prefix(pfix):
@@ -133,12 +155,15 @@ def set_key_prefix(pfix):
     KEY_PREFIX = pfix
 
 PY3 = sys.version_info >= (3, 0)
+_SB = (str, bytes) if PY3 else (str, unicode)
 REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
 REENTRY_RETRY = 5
+DEADLETTER_QUEUE = b'DEADLETTER_QUEUE'
 MINIMUM_DELAY = 1
 EXECUTE_TASKS = False
+SEND_TO_DEADLETTER = False
 QUEUE_ITEMS_PER_PASS = 100
 
 REDIS_CONNECTION_SETTINGS = {}
@@ -153,6 +178,9 @@ SUCCESS_LOG_LEVEL = 'debug'
 AFTER_FORK = None
 
 CURRENT_TASK = threading.local()
+
+bstr = ((lambda v: (v.encode('utf-8') if type(v) is str else v)) if PY3
+   else (lambda v: (v.encode('utf-8') if type(v) is unicode else v)))
 
 def _assert(condition, message, *args):
     if not condition:
@@ -212,7 +240,7 @@ def get_connection():
         POOL = redis.Redis(**REDIS_CONNECTION_SETTINGS)
     return POOL
 
-def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
+def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None, vis_timeout=0, use_dead=False):
     '''
     Internal implementation detail of call queueing. You shouldn't need to
     call this function directly.
@@ -226,34 +254,84 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
 
     delay = max(delay, 0)
     taskid = taskid or str(uuid.uuid4())
-    ts = time.time() + delay
+    ts = time.time()
 
     if taskid == fname and delay > 0:
         pipeline.zscore(rqkey, taskid)
         pipeline.zscore(qkey, taskid)
         last, current = pipeline.execute()
-        if current or (last and time.time()-last < REENTRY_RETRY):
+        if current or (last and ts-last < REENTRY_RETRY):
             log_handler.debug("SKIPPED: %s %s", taskid, fname)
             return taskid
 
-    message = json.dumps([taskid, fname, args, kwargs, time.time() + delay])
+    if vis_timeout or use_dead:
+        kwargs = dict(kwargs)
+        if vis_timeout:
+            kwargs['_vis_timeout'] = vis_timeout
+        if use_dead:
+            kwargs['_use_dead'] = use_dead
+
+    message = json.dumps([taskid, fname, args, kwargs, ts + delay])
     # enqueue it
     pipeline.hset(ikey, taskid, message)
     if taskid == fname:
-        pipeline.zadd(rqkey, **{taskid: ts})
+        _zadd(pipeline, rqkey, {taskid: ts})
     if delay > 0:
-        pipeline.zadd(qkey, **{taskid: ts})
+        _zadd(pipeline, qkey, {taskid: ts + delay})
     else:
         pipeline.rpush(nkey, taskid)
     pipeline.sadd(QUEUES_KNOWN, queue)
     pipeline.hincrby(SEEN_KEY, queue, 1)
+    pipeline.zrem(VISIBILITY_KEY + queue, taskid)
     pipeline.execute()
     if delay:
-        log_handler.debug("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts))
+        log_handler.debug("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts + delay))
     else:
         log_handler.debug("SENT: %s %s", taskid, fname)
     # return the taskid, to determine whether the task has been started or not
     return taskid
+
+_work_step_lua = script_load('''
+-- KEYS {MESSAGE_KEY, VIS_KEY}
+-- ARGV {id}
+-- Make sure that the queue item isn't already being executed / already done.
+
+redis.replicate_commands()
+local id = ARGV[1]
+if redis.call('zscore', KEYS[2], id) then
+    return ''
+end
+local item = redis.call('hget', KEYS[1], id)
+local future = 0
+if item then
+    local itemd = cjson.decode(item)
+    if itemd[4]['_vis_timeout'] then
+        future = redis.call('time')
+        future = tonumber(future[1]) + tonumber(future[2]) / 1000000
+        future = future + tonumber(itemd[4]['_vis_timeout'])
+        redis.call('zadd', KEYS[2], future, id)
+    else
+        redis.call('hdel', KEYS[1], id)
+    end
+end
+return {item or '', string.format('%.6f', future)}
+''')
+
+_finish_step_lua = script_load('''
+-- KEYS {MESSAGE_KEY, VIS_KEY}
+-- ARGV {id, t}
+
+redis.replicate_commands()
+local v = redis.call('zscore', KEYS[2], ARGV[1]) or '0'
+v = string.format("%.6f", tonumber(v))
+if v == ARGV[2] then
+    redis.call('hdel', KEYS[1], ARGV[1])
+    redis.call('zrem', KEYS[2], ARGV[1])
+    return 1
+end
+return 0
+''')
+
 
 def _get_work(conn, queues=None, timeout=1):
     '''
@@ -271,6 +349,8 @@ def _get_work(conn, queues=None, timeout=1):
     # cache the full strings
     _queues = []
     for q in queues:
+        if q == DEADLETTER_QUEUE:
+            continue
         _queues.append(PNOW_KEY + q)
         _queues.append(NOW_KEY + q)
     queues = _queues
@@ -295,10 +375,9 @@ def _get_work(conn, queues=None, timeout=1):
 
         q, id = item
         queue = q[lkp:].partition(b':')[2]
-        args_key = MESSAGES_KEY + queue
-        pipeline.hget(args_key, id)
-        pipeline.hdel(args_key, id)
-        message = pipeline.execute()[0]
+        message, t = _work_step_lua(conn,
+            keys=[MESSAGES_KEY + queue, VISIBILITY_KEY + queue], args=[id])
+
         if not message:
             # item was cancelled
             continue
@@ -321,30 +400,82 @@ def _get_work(conn, queues=None, timeout=1):
             if delay is not None:
                 # it can be scheduled again, do it
                 if delay > 0:
-                    pipeline.zadd(QUEUE_KEY + queue, **{item_id: sch + delay})
+                    _zadd(pipeline, QUEUE_KEY + queue, {item_id: sch + delay})
                 else:
                     pipeline.rpush(NOW_KEY + queue, item_id)
                 # re-add the call arguments
-                pipeline.hset(args_key, item_id, json.dumps(work[:4] + [time.time()]))
+                pipeline.hset(MESSAGES_KEY + queue, item_id, json.dumps(work[:4] + [ts]))
                 pipeline.execute()
+        if t != '0':
+            work.append(t)
+
         return work
 
 _handle_delayed_lua = script_load('''
 local run_again = false
-local cutoff = ARGV[1]
-local limit = tonumber(ARGV[2] or '100')
+local limit = tonumber(ARGV[1] or '100')
 
-for ids, qname in ipairs(KEYS) do
-    local queue = 'queue:' .. qname
-    local items = redis.call('zrangebyscore', queue, '-inf', cutoff, 'limit', 0, limit)
+local t1 = 0
+local t2 = 0
+local t3 = {}
+redis.replicate_commands()
+local cutoff
+
+if #ARGV == 1 then
+    cutoff = redis.call('time')
+    cutoff = cutoff[1] .. '.' .. cutoff[2]
+else
+    cutoff = ARGV[2]
+end
+
+for i = 1, #KEYS, 5 do
+    local queue = KEYS[i]
+    local qnow = KEYS[i+1]
+    local messages = KEYS[i+2]
+    local vis = KEYS[i+3]
+    local dead = KEYS[i+4]
+
+    -- handle delayed items
+    local items = redis.call('zrangebyscore', queue, '-inf', '(' .. cutoff, 'limit', 0, limit)
+
     local isize = #items
     if isize > 0 then
         redis.call('zremrangebyrank', queue, 0, isize-1)
-        redis.call('rpush', 'pqueue:' .. qname, unpack(items))
+        redis.call('rpush', qnow, unpack(items))
+        redis.call('zrem', vis, unpack(items))
+        run_again = run_again or isize >= limit
+    end
+
+    -- handle visibility timeouts and deadletter queue
+    items = redis.call('zrangebyscore', vis, '-inf','(' .. cutoff, 'limit', 0, limit)
+    isize = #items
+    if isize > 0 then
+        for i, id in ipairs(items) do
+            local odata = redis.call('hget', messages, id)
+            redis.call('zrem', vis, id)
+            redis.call('zrem', queue, id)
+            if odata then
+                local data = cjson.decode(odata)
+                local retries = tonumber(data[4]['_attempts'] or '0')
+
+                if retries >= 1 then
+                    data[4]['_attempts'] = retries - 1
+                    redis.call('hset', messages, id, cjson.encode(data))
+                    redis.call('rpush', qnow, id)
+                else
+                    -- that was the last try
+                    redis.call('hdel', messages, id)
+                    if data[4]['_use_dead'] then
+                        redis.call('rpush', dead, odata)
+                    end
+                end
+            end
+        end
         run_again = run_again or isize >= limit
     end
 end
-return run_again
+
+return run_again and 1 or 0
 ''')
 
 def handle_delayed_lua_(conn, queues, timeout):
@@ -359,69 +490,25 @@ def handle_delayed_lua_(conn, queues, timeout):
 
     to_end = time.time() + timeout
     first = True
+    _queues = []
+    for q in queues:
+        _queues.extend([
+            QUEUE_KEY + q,
+            PNOW_KEY + q,
+            MESSAGES_KEY + q,
+            VISIBILITY_KEY + q,
+            NOW_KEY + DEADLETTER_QUEUE,
+        ])
     while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
         first = False
-        run_again = _handle_delayed_lua(conn, queues, [time.time(), QUEUE_ITEMS_PER_PASS])
+        run_again = _handle_delayed_lua(conn, keys=_queues, args=[QUEUE_ITEMS_PER_PASS, time.time()])
         if not run_again:
             time.sleep(.05)
 
-def handle_delayed_python_(conn, queues, timeout):
-    '''
-    Internal implementation detail of handling delayed requests. You shouldn't
-    need to call this function directly.
-    '''
-    # cache the full queue strings
-    queues = [QUEUE_KEY + q for q in queues]
-
-    to_end = time.time() + timeout
-    first = True
-    found = False
-    i = 0
-    while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
-        # remove old locks every pass
-        conn.zremrangebyscore(LOCK_KEY, 0, time.time())
-        qkey = queues[i]
-        # look for a work item
-        item = conn.zrange(qkey, 0, 0, withscores=True)
-        if not item or item[0][1] > time.time():
-            # try the next queue
-            i += 1
-        else:
-            # we've got a potential work item
-            item_id, scheduled = item[0]
-            queue = qkey.partition(':')[2]
-            try:
-                # move the item over
-                with SimpleLock(conn, item_id):
-                    if conn.zrem(qkey, item_id):
-                        conn.rpush(PNOW_KEY + queue, item_id)
-            except NoLock:
-                pass
-            else:
-                found = True
-            continue
-        if i >= len(queues):
-            # we tried all of the queues and didn't find any work, wait for a
-            # bit and try again
-            i = 0
-            first = False
-            if not found:
-                time.sleep(.05)
-
-def _handle_delayed(conn, queues=None, timeout=1, impl=[]):
+def _handle_delayed(conn, queues=None, timeout=1):
     # find the set of queues for processing
     if not conn:
         conn = get_connection()
-
-    if not impl:
-        # We're using the mutable default attribute to hide our decision as
-        # to whether to use a Lua or Python-based delayed queue item handler.
-        try:
-            conn.execute_command('EVAL', 'return 1', 0)
-        except redis.exceptions.ResponseError:
-            impl.append(handle_delayed_python_)
-        else:
-            impl.append(handle_delayed_lua_)
 
     queues = queues or []
     if not queues:
@@ -430,7 +517,364 @@ def _handle_delayed(conn, queues=None, timeout=1, impl=[]):
         time.sleep(timeout)
         return
 
-    impl[0](conn, queues, timeout)
+    handle_delayed_lua_(conn, queues, timeout)
+
+def _gt(conn):
+    t = conn.time()
+    if not isinstance(t, (list, tuple)):
+        t = conn.execute()[-1]
+    return t[0] + t[1] / 1000000
+
+_get_data_lua = script_load('''
+-- KEYS {LIST_QUEUE, MESSAGES_KEY, VISIBILITY_KEY, DEADLETTER_KEY}
+-- ARGV {wanted, vis_timeout_, attempts_, use_dead_}
+-- ARGV attempts and use_dead override defaults if not provided originally
+-- during insertion. Vis_timeout is caller decided.
+
+redis.replicate_commands()
+local now = redis.call('time')
+now = tonumber(now[1]) + tonumber(now[2]) / 1000000
+local vis_timeout = tonumber(ARGV[2])
+local items = {}
+local items_ = redis.call('lrange', KEYS[1], 0, tonumber(ARGV[1]) - 1)
+if #items_ > 0 then
+    redis.call('ltrim', KEYS[1], #items_, -1)
+    items = redis.call('hmget', KEYS[2], unpack(items_))
+    if vis_timeout == 0 then
+        redis.call('hdel', KEYS[2], unpack(items_))
+    end
+    items_ = nil
+end
+local attempts_ = tonumber(ARGV[3])
+local use_dead_ = tonumber(ARGV[4])
+local avail = 0
+for i, val in ipairs(items) do
+    if val then
+        local dval = cjson.decode(val)
+        local available = dval[4]['_attempts'] or attempts_
+        if vis_timeout >= 0 and available >= 1 then
+            if vis_timeout > 0 then
+                dval[4]['_attempts'] = available - 1
+                redis.call('hset', KEYS[2], dval[1], cjson.encode(dval))
+                redis.call('zadd', KEYS[3], now + vis_timeout, dval[1])
+            end
+        else
+            -- out of tries, or 0/1 removal
+            redis.call('hdel', KEYS[2], dval[1])
+            redis.call('zrem', KEYS[3], dval[1])
+            if vis_timeout > 0 then
+                -- out of tries
+                local ud = dval[4]['_use_dead'] or use_dead_
+                if ud > 0 then
+                    redis.call('rpush', KEYS[4], val)
+                end
+                items[i] = ''
+            end
+        end
+    else
+        items[i] = ''
+    end
+end
+
+return {string.format("%.6f", now), items}
+''')
+
+
+_refresh_lua = script_load('''
+-- KEYS {VISIBILITY_KEY}
+-- ARGV {dt, uuid, uuid, uuid, ...}
+-- returns: list of uuids whose timeouts have been updated
+
+redis.replicate_commands()
+local out = {}
+local new_t = redis.call('time')
+new_t = tonumber(ARGV[1]) + tonumber(new_t[1]) + tonumber(new_t[2]) / 1000000
+local big = new_t + 1
+for i, item in ipairs(ARGV, 2) do
+    if tonumber(redis.call('zscore', KEYS[1], item) or big) < new_t then
+        redis.call('zadd', KEYS[1], ARGV[1], item)
+        out[#out + 1] = item
+    end
+end
+
+return out
+''')
+
+class Data(object):
+    '''
+    An object that represents an abstract data queue with 0/1 or 1+ removal
+    semantics. Internally works much the same way as tasks, just different keys,
+    and no explicit associated task.
+
+    For named queues with arbitrary names, with / without default timeouts and
+    deadletter queues::
+
+        # 0/1 with no retries is the default behavior
+        data_queue = rpqueue.Data("queue_name")
+
+        # 0/1 or 1+ queue, with up to 5 times visible, visibility controlled by
+        # the receiver, no deadletter queue
+        data_queue = rpqueue.Data("queue_name", attempts=5)
+        data_queue.get_data() # 0/1 queue
+        data_queue.get_data(vis_timeout=5) # 1+ queue with vis_timeout > 0
+
+        # 0/1 or 1+ queue with default visibility timeout, and automatic
+        # deadletter queue insertion on failure with 1+ queue operation
+        data_queue = rpqueue.Data("queue_name", attempts=5, vis_timeout=5, use_dead=True, is_tasks=False)
+        data_queue.get_data() # 0/1 queue
+        data_queue.get_data(vis_timeout=5) # 1+ queue with vis_timeout > 0
+
+    If you find that you need access to the various deadletter queues (because
+    you are using them and want to clean them out)...
+
+    For the Data deadletter Queue::
+
+        data_dlq = rpqueue.Data(rpqueue.DEADLETTER_QUEUE)
+
+    For the Tasks deadletter Queue, with this interface::
+
+        tasks_dlq = rpqueue.Data(rpqueue.DEADLETTER_QUEUE, is_tasks=True)
+
+    You can only pull data from these queues in a 0/1 fashion with this
+
+    '''
+    __slots__ = 'queue', 'attempts', 'vis_timeout', 'use_dead', 'is_tasks'
+    def __init__(self, queue, attempts=1, vis_timeout=0, use_dead=False, is_tasks=False):
+        self.queue = queue
+        self.attempts = max(int(attempts), 1)
+        # negative timeout would default all reads to "peeking"
+        self.vis_timeout = max(float(vis_timeout), 0)
+        self.use_dead = int(bool(use_dead))
+        self.is_tasks = is_tasks
+
+    @property
+    def qkey(self):
+        if self.is_tasks:
+            return PNOW_KEY + self.queue
+        return DATA_KEY + self.queue
+
+    @property
+    def mkey(self):
+        if self.is_tasks:
+            return MESSAGES_KEY + self.queue
+        return DATAM_KEY + self.queue
+
+    @property
+    def vkey(self):
+        if self.is_tasks:
+            return VISIBILITY_KEY + self.queue
+        return DATAV_KEY + self.queue
+
+    @property
+    def dkey(self):
+        if self.is_tasks:
+            return PNOW_KEY + DEADLETTER_QUEUE
+        return DATA_KEY + DEADLETTER_QUEUE
+
+    def currently_available(self):
+        '''
+        Returns the number of (available, invisible) items in the queue.
+        '''
+        pipe = get_connection().pipeline(True)
+        pipe.hlen(self.mkey)
+        pipe.zcard(self.vkey)
+        im, iv = pipe.execute()
+        return (im - iv, iv)
+
+    def put_data(self, data, use_dead=None, is_one=False, chunksize=512):
+        '''
+        Puts data items into the queue. Data is assumed to be a list of data
+        items, each of which will be assigned a new UUID as an identifier before
+        being placed into queues / mappings as necessary.
+
+         - ``data`` - list of json-encodable data items
+         - ``use_dead`` - if provided and true-ish, will spew attempts exceeded
+           data items into data DEADLETTER_QUEUE (queue has a default, can be
+           overridden here to enable on this inserted data)
+         - ``is_one`` - if you provide a list to ``data``, but just want that to be
+           one item, you can ensure that with ``is_one=True``
+         - ``chunksize`` - the number of items to insert per pipeline flush
+
+        '''
+        if is_one:
+            data = [data]
+        use_dead = int(bool(self.use_dead if use_dead is None else use_dead))
+        proto = {}
+        if self.attempts > 1:
+            proto['_attempts'] = self.attempts
+        if use_dead:
+            proto['_use_dead'] = use_dead
+        proto = json.dumps(proto)
+        conn = get_connection()
+        t = _gt(conn)
+        pipe = conn.pipeline(True)
+        lq = DATA_KEY + self.queue
+        hq = DATAM_KEY + self.queue
+        chunksize = max(chunksize, 1)
+        added = {}
+        add = {}
+        for i, d in enumerate(data):
+            tid = str(uuid.uuid4())
+            add[tid] = '["%s","",%s,%s,%.6f]'%(tid, json.dumps(d), proto, t)
+            added[tid] = d
+            if i and not i % chunksize:
+                if self.queue == DEADLETTER_QUEUE:
+                    pipe.rpush(lq, *list(add.values()))
+                else:
+                    pipe.hmset(hq, add)
+                    pipe.rpush(lq, *list(add))
+                t = _gt(pipe)
+                add = {}
+        if add:
+            if self.queue == DEADLETTER_QUEUE:
+                pipe.rpush(lq, *list(add.values()))
+            else:
+                pipe.hmset(hq, add)
+                pipe.rpush(lq, *list(add))
+                pipe.execute()
+
+        return added
+
+    def get_data(self, items=1, vis_timeout=None, get_timeout=None):
+        '''
+        Gets 1-1000 data items from the queue.
+
+         - ``items`` - number of items to get from the queue, 1 to 1000
+         - ``vis_timeout``
+
+           - If 0 or None, will pull items in 0/1 fashion.
+
+           - If >0, will pull items in a 1+ fashion with the visibility timeout as provided (you must call ``done_data(items)`` to 'finish' with queue items, or `refresh_data(items, vis_timeout)` to refresh the visibility timeout on certain tasks)
+
+           - If <0, will peek items in the queue without pulling them
+
+         - `get_timeout` - how long to wait for at least 1 item
+
+        Note: if you are using the DEADLETTER_QUEUE, all item removals are 0/1
+
+        If this is a data queue, will return::
+
+            {<uuid>: <data_item>, <uuid>: <data_item>}
+
+        If this is a data DEADLETTER queue, will return::
+
+            {<uuid>: [<uuid>, '', <your data>, <extra fields>, <insert time>], ...}
+
+        If this is a task queue or task DEADLETTER queue, will return::
+
+            {<uuid>: [<uuid>, <task_function_name>, <args>, <kwargs>, <scheduled time>], ...}
+            # to access the function by <task_function_name>, see: rpqueue.REGISTRY
+
+        Use::
+
+            dq = Data('queue_name', attempts=3)
+            inserted = dq.put_data([1,2,3,4])
+            removed = dq.get_data(2, vis_timeout=30) # get the data with a timeout
+            dq.refresh_data(removed, vis_timeout=45) # to update / refresh the lease
+            dq.done_data(removed) # when done processing
+
+
+        '''
+        conn = get_connection()
+        items = max(1, min(items, 1000))
+        vis_timeout = self.vis_timeout if vis_timeout is None else vis_timeout
+        load = json.loads
+        if self.queue == DEADLETTER_QUEUE:
+            pipe = conn.pipeline(True)
+            qk = self.qkey
+            pipe.lrange(qk, 0, items-1)
+            if vis_timeout is None or vis_timeout >= 0:
+                pipe.ltrim(qk, items, -1)
+            data = pipe.execute()[0]
+            return {d[0]: d for d in map(load, data)}
+
+        out = {}
+        keys = [
+            self.vkey,
+            self.qkey,
+            self.mkey,
+            self.vkey,
+            self.dkey,
+        ]
+        keys2 = keys[1:]
+        more = 1
+        ts = _gt(conn)
+        end = ts + max((0 if get_timeout is None else get_timeout), .000001)
+        data_items = None
+        while len(out) < items and ts < end:
+            if not more and not data_items:
+                remain = max(end - time.time(), 0)
+                if remain >= 1:
+                    # will cycle the item in the queue, but will at least wait
+                    # to wake us until something should be ready
+                    conn.brpoplpush(keys[1], keys[1], 1)
+                else:
+                    time.sleep(min(.05, remain))
+            more = _handle_delayed_lua(conn, keys=keys,
+                args=[max(QUEUE_ITEMS_PER_PASS, items)])
+
+            wanted = items - len(out)
+            ts, data_items = _get_data_lua(conn, keys=keys2, args=[
+                wanted, vis_timeout, self.attempts, self.use_dead])
+            ts = float(ts)
+
+            for item in data_items:
+                if item:
+                    item = load(item)
+                    if self.is_tasks:
+                        out[item[0]] = item
+                    else:
+                        out[item[0]] = item[2]
+
+        return out
+
+    def refresh_data(self, items, vis_timeout=None):
+        '''
+        Refreshes the vis_timeout on your provided item uuids, if available.
+
+        Returns: List of item uuids refreshed with the provided vis_timeout.
+
+        '''
+        if not isinstance(items, (list, tuple)):
+            items = list(items)
+        if items:
+            vis_timeout = self.vis_timeout if vis_timeout is None else vis_timeout
+            vis_timeout = 0 if vis_timeout is None else max(vis_timeout, 0)
+            return _refresh_lua(get_connection(), keys=[self.vkey], args=[vis_timeout] + items)
+        return []
+
+    def done_data(self, items):
+        '''
+        Call when you are done with data that has a visibility timeout > 0.
+        '''
+        if not isinstance(items, (list, tuple)):
+            items = list(items)
+        if items:
+            pipe = get_connection().pipeline(True)
+            pipe.hdel(self.mkey, *items)
+            pipe.zrem(self.vkey, *items)
+            return pipe.execute()[0]
+        return 0
+
+    def delete_all(self):
+        '''
+        Deletes all data in the queue. If you want to delete data from the
+        DEADLETTER_QUEUE, you should::
+
+            Data(DEADLETTER_QUEUE).delete_all()
+
+        To clear out the Tasks DEADLETTER_QUEUE::
+
+            Data(DEADLETTER_QUEUE, is_tasks=True).delete_all()
+
+        For all other queues::
+
+            Data(<name>, is_tasks=<true or false>).delete_all()
+
+        '''
+        get_connection().delete(self.qkey, self.mkey, self.vkey)
+
+
 
 class Task(object):
     '''
@@ -438,8 +882,11 @@ class Task(object):
     functions when any of the ``@task``, ``@periodic_task``, or ``@cron_task``
     decorators have been applied to a function.
     '''
-    __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay', 'save_results'
-    def __init__(self, queue, name, function, delay=None, never_skip=False, attempts=1, retry_delay=30, low_delay_okay=False, save_results=0):
+    __slots__ = 'queue', 'name', 'function', 'delay', 'attempts', 'retry_delay', \
+                'save_results', 'vis_timeout', 'use_dead'
+    def __init__(self, queue, name, function, delay=None, never_skip=False,
+                 attempts=1, retry_delay=30, low_delay_okay=False, save_results=0,
+                 vis_timeout=0, use_dead=None):
         '''
         These Task objects are automatically created by the @task,
         @periodic_task, and @cron_task decorators. You shouldn't need to
@@ -451,6 +898,8 @@ class Task(object):
         self.attempts = int(max(attempts, 1))
         self.retry_delay = max(retry_delay, 0)
         self.save_results = max(save_results, 0)
+        self.vis_timeout = vis_timeout
+        self.use_dead = use_dead
         if delay is None:
             pass
         elif isinstance(delay, _number_types):
@@ -481,7 +930,7 @@ class Task(object):
             if execute_delay is not None:
                 self.execute(delay=execute_delay, taskid=self.name)
 
-    def __call__(self, taskid=None, nowarn=False):
+    def __call__(self, taskid=None, nowarn=False, exp='0'):
         '''
         This wraps the function in an _ExecutingTask so as to offer reasonable
         introspection upon potential exception. If you want to execute the
@@ -489,7 +938,7 @@ class Task(object):
         '''
         if not taskid and not nowarn:
             log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
-        return _ExecutingTask(self, taskid)
+        return _ExecutingTask(self, taskid, exp)
 
     def next(self, now=None):
         '''
@@ -540,7 +989,8 @@ class Task(object):
             et([None, self.name, args, kwargs, 0], conn)
             return
 
-        taskid = ec(conn, _queue , self.name, args, kwargs, delay, taskid=taskid)
+        taskid = ec(conn, _queue , self.name, args, kwargs, delay, taskid=taskid,
+                    vis_timeout=self.vis_timeout, use_dead=self.use_dead)
         return enq(self.name, taskid, _queue, self)
 
     def retry(self, *args, **kwargs):
@@ -568,12 +1018,13 @@ class _ExecutingTask(object):
     '''
     An object that offers introspection into running tasks.
     '''
-    __slots__ = 'task', 'taskid', 'args', 'kwargs'
-    def __init__(self, task, taskid):
+    __slots__ = 'task', 'taskid', 'args', 'kwargs', 'exp'
+    def __init__(self, task, taskid, exp):
         self.task = task
         self.taskid = taskid.encode('latin-1') if PY3 else taskid
         self.args = None
         self.kwargs = None
+        self.exp = exp
 
     def __call__(self, *args, **kwargs):
         self.args = args
@@ -583,7 +1034,9 @@ class _ExecutingTask(object):
         want_status = self.taskid not in REGISTRY
         conn = get_connection()
         if want_status:
-            conn.setex(k, '', 60)
+            _setex(conn, k, '', 60)
+
+        vt = max(kwargs.get('_vis_timeout', 0), 0)
 
         try:
             result = self.task.function(*args, **kwargs)
@@ -592,13 +1045,20 @@ class _ExecutingTask(object):
                 conn.delete(k)
             raise
         del CURRENT_TASK.task
+        pipe = conn.pipeline(False)
+        if vt > 0:
+            _finish_step_lua(pipe,
+                keys=[MESSAGES_KEY + self.task.queue, VISIBILITY_KEY + self.task.queue],
+                args=[self.taskid, self.exp or '0'])
+
         if self.task.save_results > 0:
-            conn.setex(k,
+            _setex(pipe, k,
                 json.dumps(result),
                 self.task.save_results,
             )
         elif want_status:
-            conn.delete(k)
+            pipe.delete(k)
+        pipe.execute()
 
     def __repr__(self):
         return "<ExecutingTask taskid=%s function=%s args=%r kwargs=%r>"%(
@@ -710,7 +1170,7 @@ class SimpleLock(object):
         if pipe.execute()[-1]:
             # lock is already held, :(
             raise NoLock()
-        if not self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration}):
+        if not _zadd(self.conn, LOCK_KEY, {self.name: time.time() + self.duration}):
             # we just refreshed the other lock, no big deal, it didn't exist
             # one round-trip ago
             raise NoLock()
@@ -720,12 +1180,13 @@ class SimpleLock(object):
             self.conn.zrem(LOCK_KEY, self.name)
     def refresh(self):
         'Refreshes a lock'
-        self.conn.zadd(LOCK_KEY, **{self.name: time.time() + self.duration})
+        _zadd(self.conn, LOCK_KEY, {self.name: time.time() + self.duration})
 
-def task(*args, **kwargs):
+def task(args=None, queue=b'default', attempts=1, retry_delay=30, save_results=0, vis_timeout=0, use_dead=False, **kwargs):
     '''
-    Decorator to allow the transparent execution of a function as a task. Used
-    via::
+    Decorator to allow the transparent execution of a function as a task.
+
+    Used like::
 
         @task(queue='bar')
         def function1(arg1, arg2, ...):
@@ -735,15 +1196,18 @@ def task(*args, **kwargs):
         def function2(arg1, arg2, ...):
             'will execute from within the 'default' queue.'
     '''
-    queue = kwargs.pop('queue', None) or b'default'
-    attempts = kwargs.pop('attempts', None) or 1
-    retry_delay = max(kwargs.pop('retry_delay', 30), 0)
-    save_results = max(kwargs.pop('save_results', 0), 0)
+    queue = queue or b'default'
+    attempts = max(1, attempts)
+    retry_delay = max(retry_delay, 0)
+    vis_timeout = max(vis_timeout, 0)
+    use_dead = bool(use_dead)
+    save_results = max(save_results, 0)
     name = kwargs.pop('name', None)
     assert isinstance(queue, bytes)
     def decorate(function):
         _name = name or '%s.%s'%(function.__module__, function.__name__)
-        return _Task(queue, _name, function, attempts=attempts, retry_delay=retry_delay, save_results=save_results)
+        return _Task(queue, _name, function, attempts=attempts, retry_delay=retry_delay,
+            save_results=save_results, vis_timeout=vis_timeout, use_dead=use_dead)
     if args:
         return decorate(args[0])
     return decorate
@@ -940,7 +1404,10 @@ def _execute_task(work, conn):
     '''
     Internal implementation detail to execute a single task.
     '''
+    exp = '0'
     try:
+        if len(work) == 6:
+            exp = work.pop()
         taskid, fname, args, kwargs, scheduled = work
     except ValueError as err:
         log_handler.exception(err)
@@ -958,7 +1425,7 @@ def _execute_task(work, conn):
         log_handler.debug("ERROR: Missing function %s in registry", fname)
         return
 
-    to_execute = REGISTRY[fname](taskid, True)
+    to_execute = REGISTRY[fname](taskid, True, exp)
 
     try:
         to_execute(*args, **kwargs)
@@ -975,19 +1442,36 @@ def set_priority(queue, qpri, conn=None):
     Queues with priorities come before queues without priorities.
     '''
     conn = conn or get_connection()
-    conn.zadd(QUEUES_PRIORITY, queue, qpri)
+    _zadd(conn, QUEUES_PRIORITY, {queue:qpri})
 
 def known_queues(conn=None):
     '''
     Get a list of all known queues.
     '''
     conn = conn or get_connection()
-    q, pq = conn.pipeline(True) \
+    q, pq, dq = conn.pipeline(True) \
         .smembers(QUEUES_KNOWN) \
         .zrange(QUEUES_PRIORITY, 0, -1) \
+        .exists(NOW_KEY + DEADLETTER_QUEUE) \
         .execute()
     q = list(sorted(q, key=lambda x:x.lower()))
+    if dq:
+        pq.append(DEADLETTER_QUEUE)
     return pq + [qi for qi in q if qi not in pq]
+
+def read_deadletter(conn=None, delete=False, limit=100, is_data=False):
+    '''
+    Read and optionally delete contents of the deadletter queue.
+    '''
+    conn = conn or get_connection()
+    limit = max(limit, 1)
+    k = (DATA_KEY if is_data else NOW_KEY) + DEADLETTER_QUEUE
+    if delete:
+        pipe = conn.pipeline(True)
+        pipe.lrange(k, 0, limit)
+        pipe.lrem(k, 0, limit)
+        return pipe.execute()[0]
+    return conn.lrange(k, 0, limit)
 
 def _window(size, seq):
     iterators = []
@@ -1013,19 +1497,25 @@ def queue_sizes(conn=None):
     items = pipeline.execute()
     return zip(queues, map(sum, _window(3, items[:-len(queues)])), items[-len(queues):])
 
-def clear_queue(queue, conn=None, delete=False):
+def clear_queue(queue, conn=None, delete=False, is_data=False):
     '''
     Delete all items in a given queue, optionally deleting the queue itself.
     '''
     conn = conn or get_connection()
     pipeline = conn.pipeline(True)
-    nkey = NOW_KEY + queue
-    pkey = PNOW_KEY + queue
-    qkey = QUEUE_KEY + queue
-    pipeline.llen(nkey)
+    if not is_data:
+        nkey = NOW_KEY + queue
+        pkey = PNOW_KEY + queue
+        qkey = QUEUE_KEY + queue
+    else:
+        nkey = DATAM_KEY + queue
+        pkey = DATA_KEY + queue
+        qkey = DATAV_KEY + queue
+    keys = [nkey, pkey, qkey]
+    if not is_data:
+        keys.extend((MESSAGES_KEY + queue, VISIBILITY_KEY + queue))
     pipeline.llen(pkey)
-    pipeline.zcard(qkey)
-    pipeline.delete(nkey, pkey, qkey, MESSAGES_KEY + queue)
+    pipeline.delete(*keys)
     if delete:
         pipeline.srem(QUEUES_KNOWN, queue)
         pipeline.zrem(QUEUES_PRIORITY, queue)
@@ -1079,7 +1569,7 @@ def results(taskids, conn=None):
         taskids = [tid.encode('latin-1') for tid in taskids]
 
     results = conn.mget([RESULT_KEY + tid for tid in taskids])
-    return [(json.loads(r.decode('latin-1')) if r else None) for r in results]
+    return [(json.loads(r.decode('latin-1')) if r is not None else None) for r in results]
 
 _BAD_ITEM = (None, '<unknown>', '<unknown>', '<unknown>')
 _DONE_ITEM = (None, '<done>', '<done>', '<done>')
@@ -1102,6 +1592,9 @@ def get_page(queue, page, per_page=50, conn=None):
         start = start - lt + len(tasks)
         end = start + per_page - 1 - len(tasks)
         tasks.extend(conn.zrange(QUEUE_KEY + queue, start, end, withscores=True))
+    if queue == DEADLETTER_QUEUE:
+        return tasks
+
     stasks = [task if isinstance(task, str) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
@@ -1122,6 +1615,9 @@ def get_page(queue, page, per_page=50, conn=None):
     return out
 
 def delete_item(queue, taskid, conn=None):
+    if queue == DEADLETTER_QUEUE:
+        warnings.warn("Can't delete individual items from the deadletter queue")
+        return False
     pipeline = (conn or get_connection()).pipeline(True)
     pipeline.hdel(MESSAGES_KEY + queue, taskid)
     pipeline.zrem(RQUEUE_KEY + queue, taskid)

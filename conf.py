@@ -42,6 +42,8 @@ templates_path = ['_build_templates']
 # source_suffix = ['.rst', '.md']
 source_suffix = '.rst'
 
+autodoc_member_order = 'alphabetical'
+
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
 

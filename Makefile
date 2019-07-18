@@ -18,6 +18,8 @@ ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 # the i18n builder cannot share the environment and doctrees with the others
 I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
+.PHONY: clean docs test
+
 clean:
 	-rm -f *.pyc rpqueue/*.pyc README.html MANIFEST
 	-rm -rf build dist
@@ -36,11 +38,12 @@ test:
 upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python3.6 setup.py sdist upload
+	python3.6 setup.py sdist
+	python3.6 -m twine upload --verbose dist/rpqueue-`cat VERSION`.tar.gz
 
 docs:
 	python3.6 -c "import rpqueue; open('VERSION', 'w').write(rpqueue.VERSION);"
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
-	cd _build/html/ && zip -r9 ../../rpqueue_docs.zip * && cd ../../
+	cp -r $(BUILDDIR)/html/. docs
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

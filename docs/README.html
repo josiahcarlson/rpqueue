@@ -1,0 +1,363 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Description &#8212; RPQueue 0.30.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Description" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="description">
+<h1>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h1>
+<p>This package intends to offer a priority-based remote task queue solution
+using Redis as the transport and persistence layer, and JSON for a common
+interchange format.</p>
+<p>Semantically, this module implements a 0/1 or 1+ queue with optional retries.
+That is, it attempts to execute every task once by default, or &gt;1 manually, or
+&gt;1 automatically with ‘visibility timeouts’.</p>
+<p>If a ‘manual’ retry task raises an exception, it will not automatically retry,
+but you can manually retry the task and specify the maximum attempts. Similarly,
+for tasks with visibility timeouts, if the task rasises an exception or doesn’t
+complete, it will be retried up to the limit of retries provided.</p>
+<p>See the <a class="reference internal" href="#retries">Retries</a> section below.</p>
+<p>Full documentation is available: <a class="reference external" href="https://pythonhosted.org/rpqueue/">https://pythonhosted.org/rpqueue/</a></p>
+</div>
+<div class="section" id="getting-started">
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h1>
+<p>In order to execute tasks, you must ensure that rpqueue knows about your
+tasks that can be executed, you must configure rpqueue to connect to your
+Redis server, then you must start the task execution daemon:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mytasks</span> <span class="k">import</span> <span class="n">usertasks1</span><span class="p">,</span> <span class="n">usertasks2</span><span class="p">,</span> <span class="o">...</span>
+<span class="kn">import</span> <span class="nn">rpqueue</span>
+
+<span class="n">rpqueue</span><span class="o">.</span><span class="n">set_redis_connection_settings</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span>
+<span class="n">rpqueue</span><span class="o">.</span><span class="n">execute_tasks</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Alternatively, rpqueue offers a command-line interface to do the same, though
+you must provide the name of a module or package that imports all modules or
+packages that define tasks that you want to run. For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># tasks.py</span>
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="k">import</span> <span class="n">accounting</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">,</span> <span class="o">...</span>
+<span class="c1"># any other imports or configuration necessary, put them here</span>
+
+<span class="c1"># run from the command-line</span>
+<span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">run</span> <span class="o">--</span><span class="n">module</span><span class="o">=</span><span class="n">tasks</span> <span class="o">--</span><span class="n">host</span><span class="o">=...</span> <span class="o">--</span><span class="n">port</span><span class="o">=...</span> <span class="o">--</span><span class="n">db</span><span class="o">=...</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="example-uses">
+<h1>Example uses<a class="headerlink" href="#example-uses" title="Permalink to this headline">¶</a></h1>
+<p>Say that you have a module <code class="docutils literal notranslate"><span class="pre">usertasks1</span></code> with a task to be executed called
+<code class="docutils literal notranslate"><span class="pre">echo_to_stdout</span></code>. Your module may look like the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rpqueue</span> <span class="k">import</span> <span class="n">task</span>
+
+<span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">echo_to_stdout</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To call the above task, you would use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">echo_to_stdout</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">echo_to_stdout</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">delay</span><span class="o">=</span><span class="n">delay_in_seconds</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can also schedule a task to be repeatedly executed with the
+<code class="docutils literal notranslate"><span class="pre">periodic_task</span></code> decorator:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@periodic_task</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s2">&quot;low&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">function1</span><span class="p">():</span>
+    <span class="c1"># Will be executed every 25 seconds from within the &#39;low&#39; queue.</span>
+    <span class="k">pass</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="retries">
+<h1>Retries<a class="headerlink" href="#retries" title="Permalink to this headline">¶</a></h1>
+<p>Tasks may be provided an optional <code class="docutils literal notranslate"><span class="pre">attempts</span></code> argument, which specifies the
+total number of times the task will try to be executed before failing. By
+default, all tasks have <code class="docutils literal notranslate"><span class="pre">attempts</span></code> set at 1, unless otherwise specified:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">fail_until_zero</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">raise</span> <span class="ne">Exception</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">fail_until_zero</span><span class="o">.</span><span class="n">retry</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span> <span class="s2">&quot;succeeded&quot;</span>
+</pre></div>
+</div>
+<p>If passed the value <code class="docutils literal notranslate"><span class="pre">3</span></code>, “succeeded” will never be printed. Why? The first
+try has value=3, attempts=3, and fails. The second pass has value=2,
+attempts=2, and fails. The third pass has value=1, attempts=1, fails, and the
+retry returns without retrying. The <code class="docutils literal notranslate"><span class="pre">attempts</span></code> value is the total number of
+attempts, including the first, and all retries.</p>
+<div class="section" id="automatic-retries-with-vis-timeout">
+<h2>Automatic retries with vis_timeout<a class="headerlink" href="#automatic-retries-with-vis-timeout" title="Permalink to this headline">¶</a></h2>
+<p>Included with rpqueue 0.30.0 or later, you can give tasks (and now data queues)
+a visibility timeout, which is (per Amazon SQS-style semantics) a time for how
+long the task has to execute correctly before being automatically re-entered
+into the queue.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">usually_eventually_succeed</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="c1"># (4/5)**20  is ~ 0.0115, so call chain fails about 1% of the time</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;done!&quot;</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span> <span class="c1"># fail silently</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="deadletter-task-queue">
+<h2>Deadletter task queue<a class="headerlink" href="#deadletter-task-queue" title="Permalink to this headline">¶</a></h2>
+<p>If you would like to know which tasks failed, failed calls can be automatically
+entered into a deadletter queue.:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@rpqueue</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">fails_to_dead</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="c1"># (4/5)**5  is 0.32768, so call chain fails about 33% of the time</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;done!&quot;</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span> <span class="c1"># fail silently</span>
+
+<span class="n">task_deadletter</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="n">rpqueue</span><span class="o">.</span><span class="n">DEADLETTER_QUEUE</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">dead_tasks</span> <span class="o">=</span> <span class="n">task_deadletter</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">items</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See <code class="docutils literal notranslate"><span class="pre">help(rpqueue.Data)</span></code> for more.</p>
+</div>
+</div>
+<div class="section" id="waiting-for-task-execution">
+<h1>Waiting for task execution<a class="headerlink" href="#waiting-for-task-execution" title="Permalink to this headline">¶</a></h1>
+<p>As of version .19, RPQueue offers the ability to wait on a task until it
+begins execution:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span>
+<span class="k">def</span> <span class="nf">my_task</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="c1"># do something</span>
+
+<span class="n">executing_task</span> <span class="o">=</span> <span class="n">my_task</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">executing_task</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+    <span class="c1"># task is either being executed, or it is done</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># task has not started execution yet</span>
+</pre></div>
+</div>
+<p>With the ability to wait for a task to complete, you can have the ability to
+add deadlines by inserting a call to <code class="docutils literal notranslate"><span class="pre">executing_task.cancel()</span></code> in the else
+block above.</p>
+</div>
+<div class="section" id="automatically-storing-results-of-tasks">
+<h1>Automatically storing results of tasks<a class="headerlink" href="#automatically-storing-results-of-tasks" title="Permalink to this headline">¶</a></h1>
+<p>As of version .19, RPQueue offers the ability to store the result returned by
+a task as it completes:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">save_results</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">task_with_results</span><span class="p">():</span>
+    <span class="k">return</span> <span class="mi">5</span>
+
+<span class="n">etask</span> <span class="o">=</span> <span class="n">task_with_results</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">etask</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+    <span class="nb">print</span> <span class="n">etask</span><span class="o">.</span><span class="n">result</span> <span class="c1"># should print 5</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">save_results</span></code> argument can be passed to tasks, periodic tasks, and even
+cron tasks (described below). The value passed will be how long the result is
+stored in Redis, in seconds. All results must be json-encodable.</p>
+</div>
+<div class="section" id="additional-features">
+<h1>Additional features<a class="headerlink" href="#additional-features" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="crontab">
+<h2>Crontab<a class="headerlink" href="#crontab" title="Permalink to this headline">¶</a></h2>
+<p>Support for cron_tasks using a crontab-like syntax requires the Python crontab
+module: <a class="reference external" href="http://pypi.python.org/pypi/crontab/">http://pypi.python.org/pypi/crontab/</a> , allowing for:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@cron_task</span><span class="p">(</span><span class="s1">&#39;0 5 tue * *&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">function2</span><span class="p">():</span>
+    <span class="c1"># Will be executed every Tuesday at 5AM.</span>
+    <span class="k">pass</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="data-queues">
+<h2>Data queues<a class="headerlink" href="#data-queues" title="Permalink to this headline">¶</a></h2>
+<p>Put data in queues, not tasks. I mean, should have probably been here from the
+start, but it’s here now.</p>
+<dl class="docutils">
+<dt>Convenient features:</dt>
+<dd><ul class="first last simple">
+<li>1-1000 data items per read, at your discretion</li>
+<li><code class="docutils literal notranslate"><span class="pre">vis_timeout</span></code></li>
+<li><code class="docutils literal notranslate"><span class="pre">attempts</span></code></li>
+<li><code class="docutils literal notranslate"><span class="pre">use_dead</span></code></li>
+<li>refresh data if you want to keep working on it (we don’t identify the reader, so you should use an explicit lock if you want guaranteed exclusivity)</li>
+</ul>
+</dd>
+</dl>
+<p>A few examples:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># 0/1 queue</span>
+<span class="n">dq</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;best_effort&#39;</span><span class="p">)</span>
+<span class="n">dq</span><span class="o">.</span><span class="n">put_data</span><span class="p">([</span><span class="n">item1</span><span class="p">,</span> <span class="n">item2</span><span class="p">,</span> <span class="n">item3</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+<span class="n">items</span> <span class="o">=</span> <span class="n">dq</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># {&lt;uuid&gt;: &lt;item&gt;, ...}</span>
+
+<span class="c1"># Up to 5 deliveries, with 5 second delay before re-insertion</span>
+<span class="n">dq5</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;retry_processing&#39;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">dq5</span><span class="o">.</span><span class="n">put_data</span><span class="p">([</span><span class="n">item1</span><span class="p">,</span> <span class="n">item2</span><span class="p">,</span> <span class="n">item3</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+<span class="n">items</span> <span class="o">=</span> <span class="n">dq5</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># {&lt;uuid&gt;: &lt;item&gt;, ...}</span>
+<span class="n">items2</span> <span class="o">=</span> <span class="n">dq5</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span> <span class="c1"># override timeout on read</span>
+<span class="n">refreshed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">dq5</span><span class="o">.</span><span class="n">refresh_data</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">7</span><span class="p">))</span> <span class="c1"># refresh our lock</span>
+<span class="n">items</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">items</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">refreshed</span><span class="p">}</span>
+<span class="n">dq5</span><span class="o">.</span><span class="n">done_data</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+<span class="n">dq5</span><span class="o">.</span><span class="n">done_data</span><span class="p">(</span><span class="n">items2</span><span class="p">)</span>
+
+<span class="c1"># Up to 1 try with a 5 second delay before insertion into deadletter queue</span>
+<span class="n">dqd</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;retry_processing&#39;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">dqd</span><span class="o">.</span><span class="n">put_data</span><span class="p">([</span><span class="n">item1</span><span class="p">,</span> <span class="n">item2</span><span class="p">,</span> <span class="n">item3</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+<span class="n">items</span> <span class="o">=</span> <span class="n">dqd</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># {&lt;uuid&gt;: &lt;item&gt;, ...}</span>
+<span class="n">items2</span> <span class="o">=</span> <span class="n">dqd</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span> <span class="c1"># override timeout on read</span>
+<span class="n">refreshed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">dqd</span><span class="o">.</span><span class="n">refresh_data</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">7</span><span class="p">))</span> <span class="c1"># refresh our lock</span>
+<span class="n">items</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">items</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">refreshed</span><span class="p">}</span>
+<span class="n">dqd</span><span class="o">.</span><span class="n">done_data</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+<span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+<span class="c1"># items2 are now &quot;dead&quot;</span>
+<span class="n">dead</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="n">rpqueue</span><span class="o">.</span><span class="n">DEADLETTER_QUEUE</span><span class="p">)</span>
+<span class="n">dead_items</span> <span class="o">=</span> <span class="n">dead</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># these have a different format, see docs!</span>
+</pre></div>
+</div>
+<p>A longer example closer to what would be seen in practice:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">aggregate_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;aggregate_stats&quot;</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="nd">@rpqueue</span><span class="o">.</span><span class="n">periodic_task</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">aggregate</span><span class="p">():</span>
+    <span class="c1"># If vis_timeout is not provided, will use the queue default.</span>
+    <span class="c1"># If vis_timeout is &lt;= 0, will act as a 0/1 queue, and later &quot;done data&quot;</span>
+    <span class="c1"># calling is unnecessary.</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">aggregate_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">items</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+    <span class="c1"># data is a dictionary: {&lt;uuid&gt;: &lt;item&gt;, &lt;uuid&gt;: &lt;item&gt;, ...}</span>
+    <span class="c1"># do something with data</span>
+    <span class="n">done_with</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="nb">id</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># do something with value</span>
+        <span class="n">done_with</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+
+    <span class="n">aggregate_queue</span><span class="o">.</span><span class="n">refresh_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="c1"># still working!</span>
+
+    <span class="c1"># You can pass any iterator that naturally iterates over the uuids you</span>
+    <span class="c1"># want to be &quot;done&quot; with.</span>
+    <span class="n">aggregate_queue</span><span class="o">.</span><span class="n">done_data</span><span class="p">(</span><span class="n">done_with</span><span class="p">)</span>
+    <span class="c1"># also okay:</span>
+    <span class="c1"># aggregate_queue.done_data(data)</span>
+    <span class="c1"># aggregate_queue.done_data(tuple(data))</span>
+    <span class="c1"># aggregate_queue.done_data(list(data))</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">RPQueue</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Description</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#getting-started">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#example-uses">Example uses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#retries">Retries</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#automatic-retries-with-vis-timeout">Automatic retries with vis_timeout</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deadletter-task-queue">Deadletter task queue</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#waiting-for-task-execution">Waiting for task execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#automatically-storing-results-of-tasks">Automatically storing results of tasks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#additional-features">Additional features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#crontab">Crontab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-queues">Data queues</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Description</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Josiah Carlson.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/README.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

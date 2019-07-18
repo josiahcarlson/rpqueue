@@ -1,3 +1,22 @@
+#---------------------------------- 0.30.0 -----------------------------------
+[changed] upload switched to using twine
+[added] data queues separate from task queues, see help(rpqueue.Data) for help
+[changed] docs will now live at Github on Github pages (and will automatically
+    update)
+[added] visibility timeout to tasks (tasks can auto-retry, and self-spew into a
+    shared deadletter queue)
+[added] docs and examples of using data queues, deadletter queues, and
+    visibility timeouts
+[changed] docs are now alphabetically sorted
+[fixed] you can now use any version of the Redis client, we auto-detect and use
+    the right syntax for commands (like setex, zadd, etc.)
+[changed] new queue interfaces (data queues and visibility timeouts) use Redis
+    internal time to keep consistent
+[changed] Redis with Lua support is a hard requirement now and going forward.
+    Data queues and visibility timeouts rely exclusively on them, and are
+    unusable without them. Stick with 0.27.1 if you don't want to use Lua.
+[sponsored] the above changes to rpqueue were sponsored by hCaptcha.com, and
+    they received a custom license for their sponsorship.
 #---------------------------------- 0.27.1 -----------------------------------
 [added] thank you to Github user https://github.com/jonathanhle for patch to
     expose ssl options to the connection object.
