@@ -260,7 +260,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None, vis_ti
         pipeline.zscore(rqkey, taskid)
         pipeline.zscore(qkey, taskid)
         last, current = pipeline.execute()
-        if current or (last and ts-last < REENTRY_RETRY):
+        if current or (last and ts+delay-last < REENTRY_RETRY):
             log_handler.debug("SKIPPED: %s %s", taskid, fname)
             return taskid
 
@@ -275,7 +275,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None, vis_ti
     # enqueue it
     pipeline.hset(ikey, taskid, message)
     if taskid == fname:
-        _zadd(pipeline, rqkey, {taskid: ts})
+        _zadd(pipeline, rqkey, {taskid: ts + delay})
     if delay > 0:
         _zadd(pipeline, qkey, {taskid: ts + delay})
     else:
