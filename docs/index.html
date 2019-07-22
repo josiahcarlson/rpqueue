@@ -54,6 +54,7 @@
 <li class="toctree-l2"><a class="reference internal" href="README.html#data-queues">Data queues</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="README.html#sponsors">Sponsors</a></li>
 </ul>
 </div>
 <ul class="simple">
@@ -304,6 +305,12 @@ start, but it’s here now.</p>
 </pre></div>
 </div>
 </div>
+</div>
+<div class="section" id="sponsors">
+<h1>Sponsors<a class="headerlink" href="#sponsors" title="Permalink to this headline">¶</a></h1>
+<p>Don’t like LGPL? Sponsor the project and get almost any license you want.</p>
+<p>This project has been partly sponsored by structd.com and hCaptcha.com, both of
+whom received licenses that match their needs appropriately.</p>
 <div class="section" id="module-rpqueue">
 <span id="rpqueue-module-contents"></span><h2>Rpqueue module contents<a class="headerlink" href="#module-rpqueue" title="Permalink to this headline">¶</a></h2>
 <p>rpqueue (Redis Priority Queue)</p>
@@ -314,7 +321,7 @@ available: <a class="reference external" href="http://www.gnu.org/licenses/old-l
 <p>Other licenses may be available upon request.</p>
 <dl class="class">
 <dt id="rpqueue.Data">
-<em class="property">class </em><code class="descclassname">rpqueue.</code><code class="descname">Data</code><span class="sig-paren">(</span><em>queue</em>, <em>attempts=1</em>, <em>vis_timeout=0</em>, <em>use_dead=False</em>, <em>is_tasks=False</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">rpqueue.</code><code class="descname">Data</code><span class="sig-paren">(</span><em>queue</em>, <em>attempts=1</em>, <em>vis_timeout=0</em>, <em>use_dead=None</em>, <em>is_tasks=False</em>, <em>is_dead=False</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data" title="Permalink to this definition">¶</a></dt>
 <dd><p>An object that represents an abstract data queue with 0/1 or 1+ removal
 semantics. Internally works much the same way as tasks, just different keys,
 and no explicit associated task.</p>
@@ -332,7 +339,7 @@ deadletter queues:</p>
 <span class="c1"># 0/1 or 1+ queue with default visibility timeout, and automatic</span>
 <span class="c1"># deadletter queue insertion on failure with 1+ queue operation</span>
 <span class="n">data_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;queue_name&quot;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span> <span class="c1"># 0/1 queue</span>
+<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">vis_timeout</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 0/1 queue</span>
 <span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># 1+ queue with vis_timeout &gt; 0</span>
 </pre></div>
 </div>
@@ -398,11 +405,11 @@ DEADLETTER_QUEUE, you should:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">data_item</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">data_item</span><span class="o">&gt;</span><span class="p">}</span>
 </pre></div>
 </div>
-<p>If this is a data DEADLETTER queue, will return:</p>
+<p>If this is a data deadletter queue, will return:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">your</span> <span class="n">data</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">extra</span> <span class="n">fields</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">insert</span> <span class="n">time</span><span class="o">&gt;</span><span class="p">],</span> <span class="o">...</span><span class="p">}</span>
 </pre></div>
 </div>
-<p>If this is a task queue or task DEADLETTER queue, will return:</p>
+<p>If this is a task queue or task deadletter queue, will return:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">task_function_name</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">args</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">kwargs</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">scheduled</span> <span class="n">time</span><span class="o">&gt;</span><span class="p">],</span> <span class="o">...</span><span class="p">}</span>
 <span class="c1"># to access the function by &lt;task_function_name&gt;, see: rpqueue.REGISTRY</span>
 </pre></div>
@@ -735,6 +742,7 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
 <li class="toctree-l1"><a class="reference internal" href="README.html#waiting-for-task-execution">Waiting for task execution</a></li>
 <li class="toctree-l1"><a class="reference internal" href="README.html#automatically-storing-results-of-tasks">Automatically storing results of tasks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="README.html#additional-features">Additional features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="README.html#sponsors">Sponsors</a></li>
 </ul>
 
 <div class="relations">

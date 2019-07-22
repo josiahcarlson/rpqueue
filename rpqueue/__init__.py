@@ -239,7 +239,7 @@ def get_connection():
         POOL = redis.Redis(**REDIS_CONNECTION_SETTINGS)
     return POOL
 
-def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None, vis_timeout=0, use_dead=False):
+def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None, vis_timeout=0, use_dead=0):
     '''
     Internal implementation detail of call queueing. You shouldn't need to
     call this function directly.
@@ -620,7 +620,7 @@ class Data(object):
         # 0/1 or 1+ queue with default visibility timeout, and automatic
         # deadletter queue insertion on failure with 1+ queue operation
         data_queue = rpqueue.Data("queue_name", attempts=5, vis_timeout=5, use_dead=True, is_tasks=False)
-        data_queue.get_data() # 0/1 queue
+        data_queue.get_data(vis_timeout=0) # 0/1 queue
         data_queue.get_data(vis_timeout=5) # 1+ queue with vis_timeout > 0
 
     If you find that you need access to the various deadletter queues (because
@@ -637,14 +637,35 @@ class Data(object):
     You can only pull data from these queues in a 0/1 fashion with this
 
     '''
-    __slots__ = 'queue', 'attempts', 'vis_timeout', 'use_dead', 'is_tasks'
-    def __init__(self, queue, attempts=1, vis_timeout=0, use_dead=False, is_tasks=False):
+    __slots__ = 'queue', 'attempts', 'vis_timeout', 'use_dead', 'is_tasks', 'is_dead', 'dlq'
+    def __init__(self, queue, attempts=1, vis_timeout=0, use_dead=None, is_tasks=False, is_dead=False):
+        '''
+        - ``queue`` - name of the queue
+        - ``attempts`` - how many times to try/retry reading the data
+        - ``vis_timeout`` - how long should items be hidden between tries (see ``refresh_data()`` and ``done_data()``)
+        - ``use_dead`` - should we use a deadletter queue for items that can't be successfully processed?
+        - ``is_tasks`` - is this a task queue that we're trying to access?
+        - ``is_dead`` - is this actually a deadletter queue (default true for the global default deadletter queue name)
+
+        If use_dead is true-ish, and this is not a deadletter queue itself,
+        attempts to ``get_data()`` on an item more than ``attempts`` times with
+        a >0 ``vis_timeout`` will cause the item to be placed into the
+        associated deadletter queue.
+
+        '''
         self.queue = queue
         self.attempts = max(int(attempts), 1)
         # negative timeout would default all reads to "peeking"
         self.vis_timeout = max(float(vis_timeout), 0)
         self.use_dead = int(bool(use_dead))
         self.is_tasks = is_tasks
+        self.is_dead = is_dead
+        if is_dead:
+            self.dlq = queue
+        elif use_dead and isinstance(use_dead, bytes):
+            self.dlq = use_dead
+        else:
+            self.dlq = DEADLETTER_QUEUE
 
     @property
     def qkey(self):
@@ -667,8 +688,8 @@ class Data(object):
     @property
     def dkey(self):
         if self.is_tasks:
-            return PNOW_KEY + DEADLETTER_QUEUE
-        return DATA_KEY + DEADLETTER_QUEUE
+            return PNOW_KEY + self.dlq
+        return DATA_KEY + self.dlq
 
     def currently_available(self):
         '''
@@ -717,7 +738,7 @@ class Data(object):
             add[tid] = '["%s","",%s,%s,%.6f]'%(tid, json.dumps(d), proto, t)
             added[tid] = d
             if i and not i % chunksize:
-                if self.queue == DEADLETTER_QUEUE:
+                if self.queue == DEADLETTER_QUEUE or self.is_dead:
                     pipe.rpush(lq, *list(add.values()))
                 else:
                     pipe.hmset(hq, add)
@@ -725,7 +746,7 @@ class Data(object):
                 t = _gt(pipe)
                 add = {}
         if add:
-            if self.queue == DEADLETTER_QUEUE:
+            if self.queue == DEADLETTER_QUEUE or self.is_dead:
                 pipe.rpush(lq, *list(add.values()))
             else:
                 pipe.hmset(hq, add)
@@ -755,11 +776,11 @@ class Data(object):
 
             {<uuid>: <data_item>, <uuid>: <data_item>}
 
-        If this is a data DEADLETTER queue, will return::
+        If this is a data deadletter queue, will return::
 
             {<uuid>: [<uuid>, '', <your data>, <extra fields>, <insert time>], ...}
 
-        If this is a task queue or task DEADLETTER queue, will return::
+        If this is a task queue or task deadletter queue, will return::
 
             {<uuid>: [<uuid>, <task_function_name>, <args>, <kwargs>, <scheduled time>], ...}
             # to access the function by <task_function_name>, see: rpqueue.REGISTRY
@@ -778,7 +799,7 @@ class Data(object):
         items = max(1, min(items, 1000))
         vis_timeout = self.vis_timeout if vis_timeout is None else vis_timeout
         load = json.loads
-        if self.queue == DEADLETTER_QUEUE:
+        if self.queue == DEADLETTER_QUEUE or self.is_dead:
             pipe = conn.pipeline(True)
             qk = self.qkey
             pipe.lrange(qk, 0, items-1)
@@ -797,9 +818,10 @@ class Data(object):
         ]
         keys2 = keys[1:]
         more = 1
+
+        data_items = None
         ts = _gt(conn)
         end = ts + max((0 if get_timeout is None else get_timeout), .000001)
-        data_items = None
         while len(out) < items and ts < end:
             if not more and not data_items:
                 remain = max(end - time.time(), 0)
