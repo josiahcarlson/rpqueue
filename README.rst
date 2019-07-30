@@ -17,8 +17,8 @@ complete, it will be retried up to the limit of retries provided.
 
 See the `Retries`_ section below.
 
-Full documentation is available: `https://pythonhosted.org/rpqueue/
-<https://pythonhosted.org/rpqueue/>`_
+Full documentation is available: `https://josiahcarlson.github.io/rpqueue/
+<https://josiahcarlson.github.io/rpqueue/>`_
 
 Getting started
 ===============

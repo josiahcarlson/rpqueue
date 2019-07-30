@@ -1,3 +1,5 @@
+#---------------------------------- 0.30.1 -----------------------------------
+[fixed] docs website and link
 #---------------------------------- 0.30.0 -----------------------------------
 [changed] Makefile pypi upload switched to using twine
 [added] data queues separate from task queues, see help(rpqueue.Data) for help
