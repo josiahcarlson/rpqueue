@@ -11,6 +11,14 @@ Other licenses may be available upon request.
 '''
 
 from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
+from builtins import zip
+from builtins import map
+from builtins import str
+from builtins import range
+from builtins import object
+
 import datetime
 from hashlib import sha1
 import imp
@@ -1498,7 +1506,7 @@ def _window(size, seq):
     iterators = []
     for i in range(size):
         iterators.append(itertools.islice(seq, i, len(seq), size))
-    return itertools.izip(*iterators)
+    return zip(*iterators)
 
 def queue_sizes(conn=None):
     '''
@@ -1619,7 +1627,7 @@ def get_page(queue, page, per_page=50, conn=None):
     stasks = [task if isinstance(task, str) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
-    for tid, msg in itertools.izip(tasks, messages):
+    for tid, msg in zip(tasks, messages):
         if isinstance(tid, str):
             ts = '<now>'
         else:
