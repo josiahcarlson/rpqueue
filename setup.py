@@ -30,5 +30,5 @@ setup(
     ],
     license='GNU LGPL v2.1',
     long_description=long_description,
-    requires=['redis'],
+    requires=['redis', 'future'],
 )

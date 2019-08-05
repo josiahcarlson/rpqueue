@@ -11,6 +11,10 @@ Other licenses may be available upon request.
 '''
 
 from __future__ import print_function
+from builtins import zip
+from builtins import map
+from builtins import range
+
 import datetime
 from hashlib import sha1
 import imp
@@ -42,7 +46,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.27.1'
+VERSION = '0.27.2'
 
 RPQUEUE_CONFIGS = {}
 
@@ -128,7 +132,7 @@ def set_key_prefix(pfix):
     '''
     if PY3 and isinstance(pfix, str):
         pfix = pfix.encode('latin-1')
-    globals().update((k, pfix+v) for k, v in _NAME_KEYS.items())
+    globals().update((k, pfix+v) for k, v in list(_NAME_KEYS.items()))
     global KEY_PREFIX
     KEY_PREFIX = pfix
 
@@ -900,7 +904,7 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
 
 def _print_stackframes_on_signal(signum, frame):
     pid = os.getpid()
-    for tid, frame in sys._current_frames().items():
+    for tid, frame in list(sys._current_frames().items()):
         log_handler.critical('PID: %s THREAD: %s\n%s' % (pid, tid, ''.join(traceback.format_stack(frame))))
 
 def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None):
@@ -993,7 +997,7 @@ def _window(size, seq):
     iterators = []
     for i in range(size):
         iterators.append(itertools.islice(seq, i, len(seq), size))
-    return itertools.izip(*iterators)
+    return list(zip(*iterators))
 
 def queue_sizes(conn=None):
     '''
@@ -1011,7 +1015,7 @@ def queue_sizes(conn=None):
     for queue in queues:
         pipeline.hget(SEEN_KEY, queue)
     items = pipeline.execute()
-    return zip(queues, map(sum, _window(3, items[:-len(queues)])), items[-len(queues):])
+    return list(zip(queues, list(map(sum, _window(3, items[:-len(queues)]))), items[-len(queues):]))
 
 def clear_queue(queue, conn=None, delete=False):
     '''
@@ -1105,7 +1109,7 @@ def get_page(queue, page, per_page=50, conn=None):
     stasks = [task if isinstance(task, str) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
-    for tid, msg in itertools.izip(tasks, messages):
+    for tid, msg in zip(tasks, messages):
         if isinstance(tid, str):
             ts = '<now>'
         else:
