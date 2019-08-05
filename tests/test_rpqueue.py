@@ -1,5 +1,7 @@
 
 from __future__ import print_function
+from builtins import range
+from past.utils import old_div
 import multiprocessing
 import threading
 import time
@@ -151,7 +153,7 @@ class TestRPQueue(unittest.TestCase):
             time.sleep(.05)
         s = saw[0]
         dt = time.time() - t
-        print("\n%.1f tasks/second injection/running"%(s/dt,))
+        print("\n%.1f tasks/second injection/running"%(old_div(s,dt),))
 
     def test_z_performance2(self):
         saw[0] = 0
@@ -161,18 +163,18 @@ class TestRPQueue(unittest.TestCase):
             time.sleep(.05)
         s = saw[0]
         dt2 = time.time() - t
-        print("%.1f tasks/second sequential retries"%(s/dt2,))
+        print("%.1f tasks/second sequential retries"%(old_div(s,dt2),))
 
     def test_z_performance3(self):
         saw[0] = 0
-        _scale = scale / 4
+        _scale = old_div(scale, 4)
         t = time.time()
         speed3.execute(_attempts=_scale)
         while saw[0] < _scale:
             time.sleep(.05)
         s = saw[0]
         dt3 = time.time() - t
-        print("%.1f tasks/second delayed retries"%(s/dt3,))
+        print("%.1f tasks/second delayed retries"%(old_div(s,dt3),))
 
     def test_wait(self):
         wt = wait_test.execute(.01, delay=1)
