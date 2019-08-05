@@ -9,7 +9,7 @@ import unittest
 import rpqueue
 rpqueue.log_handler.setLevel(rpqueue.logging.CRITICAL)
 
-queue = b'TEST_QUEUE'
+rpqueue.DEFAULT_QUEUE = queue = b'TEST_QUEUE'
 rpqueue.DEADLETTER_QUEUE = b'TEST_DEADLETTER_QUEUE'
 
 def _start_task_processor(rpqueue=rpqueue):
@@ -82,6 +82,10 @@ def vis_test2(i, **kwargs):
 @rpqueue.task(queue=queue, attempts=3, vis_timeout=.1, use_dead=True, save_results=30)
 def vis_test3(i, **kwargs):
     return i
+
+@rpqueue.task
+def simple_task(a):
+    saw[0] = a
 
 
 global_wait_test = wait_test
@@ -311,6 +315,11 @@ class TestRPQueue(unittest.TestCase):
         di = {k: v[2] for k,v in di.items()}
         self.assertEqual(di, d)
 
+    def test_simple_task2(self):
+        saw[0] = 0
+        simple_task.execute(113)
+        time.sleep(.1)
+        self.assertEqual(saw[0], 113)
 
 if __name__ == '__main__':
     unittest.main()

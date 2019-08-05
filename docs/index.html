@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Description &#8212; RPQueue 0.30.1 documentation</title>
+    <title>Description &#8212; RPQueue 0.30.2 documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -61,7 +61,7 @@
 <li><a class="reference internal" href="#module-rpqueue" title="rpqueue"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">rpqueue</span></code></a></li>
 </ul>
 <p>Documentation for version:</p>
-<p>0.30.1</p>
+<p>0.30.2</p>
 <div class="section" id="description">
 <h1>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h1>
 <p>This package intends to offer a priority-based remote task queue solution
@@ -700,7 +700,7 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
 
 <dl class="function">
 <dt id="rpqueue.task">
-<code class="descclassname">rpqueue.</code><code class="descname">task</code><span class="sig-paren">(</span><em>args=None</em>, <em>queue=b'default'</em>, <em>attempts=1</em>, <em>retry_delay=30</em>, <em>save_results=0</em>, <em>vis_timeout=0</em>, <em>use_dead=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.task" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">rpqueue.</code><code class="descname">task</code><span class="sig-paren">(</span><em>args=None</em>, <em>queue=None</em>, <em>attempts=1</em>, <em>retry_delay=30</em>, <em>save_results=0</em>, <em>vis_timeout=0</em>, <em>use_dead=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.task" title="Permalink to this definition">¶</a></dt>
 <dd><p>Decorator to allow the transparent execution of a function as a task.</p>
 <p>Used like:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="s1">&#39;bar&#39;</span><span class="p">)</span>

@@ -38,23 +38,27 @@ except ImportError:
         __slots__ = ()
 
 import redis
+
 MED_CLIENT = redis.__version__ >= '2.6.'
 NEW_CLIENT = redis.__version__ >= '3.'
+STRICT_REDIS = redis.StrictRedis if hasattr(redis, 'StrictRedis') else None
+STRICT_PIPE = redis.StrictPipeline if hasattr(redis, 'StrictPipeline') else None
+STRICT_CONNS = STRICT_REDIS, STRICT_PIPE
 
 def _zadd(conn, key, data):
-    if NEW_CLIENT:
+    if NEW_CLIENT or isinstance(conn, STRICT_CONNS):
         return conn.zadd(key, data)
     return conn.zadd(key, **data)
 
 def _setex(conn, key, value, time):
-    if MED_CLIENT:
+    if MED_CLIENT or isinstance(conn, STRICT_CONNS):
         return conn.setex(key, time, value)
     return conn.setex(key, value, time)
 
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.30.1'
+VERSION = '0.30.2'
 
 RPQUEUE_CONFIGS = {}
 
@@ -160,6 +164,7 @@ REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
 REENTRY_RETRY = 5
+DEFAULT_QUEUE = b'default'
 DEADLETTER_QUEUE = b'DEADLETTER_QUEUE'
 MINIMUM_DELAY = 1
 EXECUTE_TASKS = False
@@ -1203,7 +1208,7 @@ class SimpleLock(object):
         'Refreshes a lock'
         _zadd(self.conn, LOCK_KEY, {self.name: time.time() + self.duration})
 
-def task(args=None, queue=b'default', attempts=1, retry_delay=30, save_results=0, vis_timeout=0, use_dead=False, **kwargs):
+def task(args=None, queue=None, attempts=1, retry_delay=30, save_results=0, vis_timeout=0, use_dead=False, **kwargs):
     '''
     Decorator to allow the transparent execution of a function as a task.
 
@@ -1217,7 +1222,7 @@ def task(args=None, queue=b'default', attempts=1, retry_delay=30, save_results=0
         def function2(arg1, arg2, ...):
             'will execute from within the 'default' queue.'
     '''
-    queue = queue or b'default'
+    queue = queue or DEFAULT_QUEUE or b'default'
     attempts = max(1, attempts)
     retry_delay = max(retry_delay, 0)
     vis_timeout = max(vis_timeout, 0)
@@ -1229,8 +1234,8 @@ def task(args=None, queue=b'default', attempts=1, retry_delay=30, save_results=0
         _name = name or '%s.%s'%(function.__module__, function.__name__)
         return _Task(queue, _name, function, attempts=attempts, retry_delay=retry_delay,
             save_results=save_results, vis_timeout=vis_timeout, use_dead=use_dead)
-    if args:
-        return decorate(args[0])
+    if args and callable(args):
+        return decorate(args)
     return decorate
 
 _to_seconds = lambda td: td.days * 86400 + td.seconds + td.microseconds / 1000000.
@@ -1498,7 +1503,7 @@ def _window(size, seq):
     iterators = []
     for i in range(size):
         iterators.append(itertools.islice(seq, i, len(seq), size))
-    return itertools.izip(*iterators)
+    return zip(*iterators)
 
 def queue_sizes(conn=None):
     '''
@@ -1619,7 +1624,7 @@ def get_page(queue, page, per_page=50, conn=None):
     stasks = [task if isinstance(task, str) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
-    for tid, msg in itertools.izip(tasks, messages):
+    for tid, msg in zip(tasks, messages):
         if isinstance(tid, str):
             ts = '<now>'
         else:
