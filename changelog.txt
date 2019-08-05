@@ -1,3 +1,5 @@
+#---------------------------------- 0.30.3 -----------------------------------
+[fixed] one line change because Josiah wasn't paying attention
 #---------------------------------- 0.30.2 -----------------------------------
 [fixed] removed izip, fixed some utility functions, added no arguments test to
     test / verify basic issue. Thanks to github user https://github.com/makov44

@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.30.2'
+VERSION = '0.30.3'
 
 RPQUEUE_CONFIGS = {}
 
@@ -527,7 +527,7 @@ def _gt(conn):
     t = conn.time()
     if not isinstance(t, (list, tuple)):
         t = conn.execute()[-1]
-    return t[0] + t[1] / 1000000
+    return t[0] + t[1] / 1000000.
 
 _get_data_lua = script_load('''
 -- KEYS {LIST_QUEUE, MESSAGES_KEY, VISIBILITY_KEY, DEADLETTER_KEY}
