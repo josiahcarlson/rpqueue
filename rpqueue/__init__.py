@@ -1070,7 +1070,11 @@ class _ExecutingTask(object):
             if want_status:
                 conn.delete(k)
             raise
-        del CURRENT_TASK.task
+        try:
+            del CURRENT_TASK.task
+        except AttributeError:
+            # When is thread local not thread local?
+            pass
         pipe = conn.pipeline(False)
         if vt > 0:
             _finish_step_lua(pipe,
