@@ -321,5 +321,11 @@ class TestRPQueue(unittest.TestCase):
         time.sleep(.1)
         self.assertEqual(saw[0], 113)
 
+    def test_eil(self):
+        saw[0] = 0
+        simple_task.execute(112, execute_inline_now=True)
+        self.assertEqual(saw[0], 112)
+
+
 if __name__ == '__main__':
     unittest.main()

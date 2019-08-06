@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.30.3'
+VERSION = '0.30.4'
 
 RPQUEUE_CONFIGS = {}
 
@@ -1047,7 +1047,7 @@ class _ExecutingTask(object):
     __slots__ = 'task', 'taskid', 'args', 'kwargs', 'exp'
     def __init__(self, task, taskid, exp):
         self.task = task
-        self.taskid = taskid.encode('latin-1') if PY3 else taskid
+        self.taskid = (taskid.encode('latin-1') if PY3 else taskid) if taskid is not None else b''
         self.args = None
         self.kwargs = None
         self.exp = exp
@@ -1057,7 +1057,7 @@ class _ExecutingTask(object):
         self.kwargs = kwargs
         CURRENT_TASK.task = self
         k = RESULT_KEY + self.taskid
-        want_status = self.taskid not in REGISTRY
+        want_status = self.taskid not in REGISTRY and self.taskid
         conn = get_connection()
         if want_status:
             _setex(conn, k, '', 60)
