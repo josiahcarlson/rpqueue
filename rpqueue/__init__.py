@@ -46,7 +46,7 @@ STRICT_PIPE = redis.StrictPipeline if hasattr(redis, 'StrictPipeline') else None
 STRICT_CONNS = STRICT_REDIS, STRICT_PIPE
 
 def _zadd(conn, key, data):
-    if NEW_CLIENT or isinstance(conn, STRICT_CONNS):
+    if NEW_CLIENT:
         return conn.zadd(key, data)
     return conn.zadd(key, **data)
 
@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.30.5'
+VERSION = '0.30.6'
 
 RPQUEUE_CONFIGS = {}
 
