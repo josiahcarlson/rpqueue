@@ -39,8 +39,8 @@ except ImportError:
 
 import redis
 
-MED_CLIENT = redis.__version__ >= '2.6.'
-NEW_CLIENT = redis.__version__ >= '3.'
+MED_CLIENT = redis.VERSION >= (2,6,0)
+NEW_CLIENT = redis.VERSION >= (3,0,0)
 STRICT_REDIS = redis.StrictRedis if hasattr(redis, 'StrictRedis') else None
 STRICT_PIPE = redis.StrictPipeline if hasattr(redis, 'StrictPipeline') else None
 STRICT_CONNS = STRICT_REDIS, STRICT_PIPE
@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.31.0'
+VERSION = '0.31.1'
 
 RPQUEUE_CONFIGS = {}
 

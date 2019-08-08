@@ -1,3 +1,5 @@
+#---------------------------------- 0.31.1 -----------------------------------
+[fixed] periodic tasks should now work. Sorry about that :/
 #---------------------------------- 0.31.0 -----------------------------------
 [fixed] issues with cron tasks and periodic tasks, releasing 0.31.0 because
     0.30.* is apparently cursed
