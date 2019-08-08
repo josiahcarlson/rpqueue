@@ -7,16 +7,23 @@ import time
 import unittest
 
 import rpqueue
-rpqueue.log_handler.setLevel(rpqueue.logging.CRITICAL)
+# make sure we're not hiding errors during tests
+rpqueue.log_handler.setLevel(rpqueue.logging.DEBUG)
 
 rpqueue.DEFAULT_QUEUE = queue = b'TEST_QUEUE'
 rpqueue.DEADLETTER_QUEUE = b'TEST_DEADLETTER_QUEUE'
 
+def wrap(f):
+    def call(*args):
+        rpqueue.EXECUTE_TASKS = True
+        f(*args)
+    return call
+
 def _start_task_processor(rpqueue=rpqueue):
-    t = multiprocessing.Process(target=rpqueue._execute_tasks, args=([queue],))
+    t = multiprocessing.Process(target=wrap(rpqueue._execute_tasks), args=([queue],))
     t.daemon = True
     t.start()
-    t2 = multiprocessing.Process(target=rpqueue._handle_delayed, args=(None, None, 60))
+    t2 = multiprocessing.Process(target=wrap(rpqueue._handle_delayed), args=(None, None, 60))
     t2.daemon = True
     t2.start()
     return t, t2
@@ -87,6 +94,9 @@ def vis_test3(i, **kwargs):
 def simple_task(a):
     saw[0] = a
 
+@rpqueue.periodic_task(.001, queue=queue, low_delay_okay=True)
+def periodic_task2(**kwargs):
+    saw[0] += 1
 
 global_wait_test = wait_test
 
@@ -167,6 +177,13 @@ class TestRPQueue(unittest.TestCase):
         x = saw[0]
         self.assertTrue(x > 0, x)
         print("\n%.1f tasks/second periodic tasks"%(x/2.0,))
+
+    def test_periodic_task2(self):
+        saw[0] = 0
+        periodic_task2.execute(taskid=periodic_task2.name)
+        time.sleep(5)
+        x = saw[0]
+        self.assertGreater(x, 1)
 
     def test_z_performance1(self):
         saw[0] = 0

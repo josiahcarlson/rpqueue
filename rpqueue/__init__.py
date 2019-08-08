@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.30.6'
+VERSION = '0.31.0'
 
 RPQUEUE_CONFIGS = {}
 
@@ -403,12 +403,13 @@ def _get_work(conn, queues=None, timeout=1):
             delay = REGISTRY[item_id].next(sch)
             if delay is not None:
                 # it can be scheduled again, do it
+                st = sch + delay
                 if delay > 0:
-                    _zadd(pipeline, QUEUE_KEY + queue, {item_id: sch + delay})
+                    _zadd(pipeline, QUEUE_KEY + queue, {item_id: st})
                 else:
                     pipeline.rpush(NOW_KEY + queue, item_id)
-                # re-add the call arguments
-                pipeline.hset(MESSAGES_KEY + queue, item_id, json.dumps(work[:4] + [ts]))
+                # reinsert the call arguments
+                pipeline.hset(MESSAGES_KEY + queue, item_id, json.dumps(work[:4] + [st]))
                 pipeline.execute()
         if t != '0':
             work.append(t)
@@ -1062,7 +1063,9 @@ class _ExecutingTask(object):
         if want_status:
             _setex(conn, k, '', 60)
 
-        vt = max(kwargs.get('_vis_timeout', 0), 0)
+        kwargs = dict(kwargs)
+        kwargs.pop('_use_dead', None)
+        vt = max(kwargs.pop('_vis_timeout', 0), 0)
 
         try:
             result = self.task.function(*args, **kwargs)
