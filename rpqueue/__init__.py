@@ -595,7 +595,11 @@ class _ExecutingTask(object):
             if want_status:
                 conn.delete(k)
             raise
-        del CURRENT_TASK.task
+        try:
+            del CURRENT_TASK.task  # Copied from origin repository
+        except AttributeError:
+            # When is thread local not thread local?
+            pass
         if self.task.save_results > 0:
             conn.setex(k,
                 json.dumps(result),
@@ -740,6 +744,8 @@ def task(*args, **kwargs):
             'will execute from within the 'default' queue.'
     '''
     queue = kwargs.pop('queue', None) or b'default'
+    if PY3 and isinstance(queue, str):
+        queue = queue.encode()
     attempts = kwargs.pop('attempts', None) or 1
     retry_delay = max(kwargs.pop('retry_delay', 30), 0)
     save_results = max(kwargs.pop('save_results', 0), 0)
@@ -795,6 +801,8 @@ def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, ret
     seconds after the current time (it skips any missed scheduled time).
 
     '''
+    if PY3 and isinstance(queue, str):
+        queue = queue.encode()
     _assert(isinstance(queue, bytes),
         "queue name provided must be a string, not %r", queue)
     _assert(isinstance(run_every, _number_types_plus),
@@ -841,7 +849,9 @@ def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_del
     if not CronTab.__slots__:
         raise Exception("You must have the 'crontab' module installed to use @cron_task")
 
-    _assert(isinstance(queue, str),
+    if PY3 and isinstance(queue, str):
+        queue = queue.encode()
+    _assert(isinstance(queue, bytes),
         "queue name provided must be a string, not %r", queue)
     _assert(isinstance(crontab, str),
         "crontab provided must be a string, not %r", crontab)
