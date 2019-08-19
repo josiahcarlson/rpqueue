@@ -110,13 +110,13 @@ class TestRPQueue(unittest.TestCase):
 
     def test_simple_task(self):
         task1.execute(1)
-        time.sleep(1)
+        time.sleep(.25)
 
         self.assertEquals(saw[0], 1)
 
     def test_simple_task_str(self):
         task1_str.execute(1)
-        time.sleep(1)
+        time.sleep(0.25)
 
         self.assertEquals(saw[0], 1)
 
@@ -125,32 +125,32 @@ class TestRPQueue(unittest.TestCase):
 
         time.sleep(2.75)
         self.assertEquals(saw[0], 0)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEquals(saw[0], 2)
 
     def test_retry_task(self):
         saw[0] = -1
         taskr.execute(0)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEquals(saw[0], 4)
 
         saw[0] = -1
         taskr.execute(1)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEquals(saw[0], 5)
 
     def test_retry_task2(self):
         taskr2.execute(0)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEquals(saw[0], 0)
 
         taskr.execute(1)
-        time.sleep(1)
+        time.sleep(0.5)
         self.assertEquals(saw[0], 5)
 
     def test_exception_no_kill(self):
         taske.execute()
-        time.sleep(1)
+        time.sleep(.001)
         task1.execute(6)
 
         time.sleep(1)
@@ -220,31 +220,6 @@ class TestRPQueue(unittest.TestCase):
         time.sleep(2.1)
         self.assertEquals(wt.result, 2)
 
-    #@unittest.skip
-    # def test_instance(self):
-    #     rpq2 = rpqueue.new_rpqueue('test', 'tpfix')
-    #     rpq2.log_handler.setLevel(rpqueue.logging.CRITICAL)
-    #     @rpq2.task(queue=queue, save_results=30)
-    #     def wait_test(arg):
-    #         # doesn't wait, alternate implementation, for prefix/instance
-    #         # testing :P
-    #         return arg
-    #
-    #     wt = global_wait_test.execute(0)
-    #     time.sleep(1)
-    #     self.assertEquals(wt.result, 0)
-    #
-    #     wt2 = wait_test.execute(0)
-    #     time.sleep(1)
-    #     # no task runner!
-    #     self.assertEquals(wt2.result, None)
-    #     t1, t2 = _start_task_processor(rpq2)
-    #     time.sleep(1)
-    #     self.assertEquals(wt2.result, 0)
-    #     rpq2.SHOULD_QUIT[0] = 1
-    #     # wait for the runner to quit
-    #     t1.join()
-    #     t2.join()
 
     def test_queue_override(self):
         t = result_test.execute(5)
@@ -258,7 +233,7 @@ class TestRPQueue(unittest.TestCase):
     def test_simple_task2(self):
         saw[0] = 0
         simple_task.execute(113)
-        time.sleep(1)
+        time.sleep(.5)
         self.assertEqual(saw[0], 113)
 
 if __name__ == '__main__':

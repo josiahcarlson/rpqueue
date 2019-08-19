@@ -596,8 +596,9 @@ class _ExecutingTask(object):
                 conn.delete(k)
             raise
         try:
-            del CURRENT_TASK.task
+            del CURRENT_TASK.task  # Copied from origin repository
         except AttributeError:
+            # When is thread local not thread local?
             pass
         if self.task.save_results > 0:
             conn.setex(k,
