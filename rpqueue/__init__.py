@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.31.1'
+VERSION = '0.31.2'
 
 RPQUEUE_CONFIGS = {}
 
@@ -1136,8 +1136,14 @@ class _EnqueuedTask(object):
 
             exp = self.task.save_results if self.task and self.task.save_results > 0 else 60
             k = RESULT_KEY + tid
-            if pipe.expire(k, exp).get(k).execute()[-1] == '':
+            v = pipe.expire(k, exp).get(k).execute()[-1]
+            if v in (b'', u''):
                 return "started"
+            # Technically could be 'done' or 'started', but we don't know
+            # because the key that kept that status doesn't exist anymore. Call
+            # it done.
+            # if not v:
+            #     return "unknown"
 
             return "done"
         elif eta <= time.time():

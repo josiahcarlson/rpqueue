@@ -1,3 +1,8 @@
+#---------------------------------- 0.31.2 -----------------------------------
+[fixed] the in some cases, rpqueue could return 'done' for a task status when it
+    was actually 'started'. Thanks to github user https://github.com/posix4e for
+    the bug report. Also noticed that there is an 'unknown' case where we can be
+    in one of 2 states, but we'll go ahead and call that 'done' as well.
 #---------------------------------- 0.31.1 -----------------------------------
 [fixed] periodic tasks should now work. Sorry about that :/
 #---------------------------------- 0.31.0 -----------------------------------
