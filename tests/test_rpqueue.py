@@ -98,6 +98,10 @@ def simple_task(a):
 def periodic_task2(**kwargs):
     saw[0] += 1
 
+@rpqueue.task(save_results=5)
+def simple_task2(a):
+    saw[0] = a
+
 global_wait_test = wait_test
 
 scale = 1000
@@ -342,6 +346,21 @@ class TestRPQueue(unittest.TestCase):
         saw[0] = 0
         simple_task.execute(112, execute_inline_now=True)
         self.assertEqual(saw[0], 112)
+
+    def test_call_via_registry(self):
+        saw[0] = 0
+        t = rpqueue.call_task(simple_task2.name, None, 45)
+        t.wait(1)
+        time.sleep(.1)
+        self.assertEqual(saw[0], 45)
+
+        t = rpqueue.known_tasks[simple_task2.name].execute(46)
+        t.wait(1)
+        time.sleep(.1)
+        self.assertEqual(saw[0], 46)
+
+        self.assertRaises(ValueError, lambda: rpqueue.call_task('does_not_exist', None, verify=True))
+        self.assertRaises(KeyError, lambda: rpqueue.known_tasks['does_not_exist'])
 
 
 if __name__ == '__main__':

@@ -1,3 +1,8 @@
+#---------------------------------- 0.32.0 -----------------------------------
+[added] the ability for callers to call stubs instead of needing to have all of
+    your task / caller code in the same repository. See:
+    `rpqueue.call_task(name, None or override_queue, *args, **kw)` and
+    `rpqueue.known_tasks[name].execute(*args, **kwargs)`
 #---------------------------------- 0.31.2 -----------------------------------
 [fixed] the in some cases, rpqueue could return 'done' for a task status when it
     was actually 'started'. Thanks to github user https://github.com/posix4e for

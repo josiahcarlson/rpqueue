@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Description &#8212; RPQueue 0.31.2 documentation</title>
+    <title>Description &#8212; RPQueue 0.32.0 documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -61,7 +61,7 @@
 <li><a class="reference internal" href="#module-rpqueue" title="rpqueue"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">rpqueue</span></code></a></li>
 </ul>
 <p>Documentation for version:</p>
-<p>0.31.2</p>
+<p>0.32.0</p>
 <div class="section" id="description">
 <h1>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h1>
 <p>This package intends to offer a priority-based remote task queue solution
@@ -452,6 +452,52 @@ one item, you can ensure that with <code class="docutils literal notranslate"><s
 
 </dd></dl>
 
+<dl class="class">
+<dt id="rpqueue.EnqueuedTask">
+<em class="property">class </em><code class="descclassname">rpqueue.</code><code class="descname">EnqueuedTask</code><span class="sig-paren">(</span><em>name</em>, <em>taskid</em>, <em>queue</em>, <em>task=None</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask" title="Permalink to this definition">¶</a></dt>
+<dd><p>An object that allows for simple status checks on tasks being executed right
+now. Returned by task.execute() or call_task().</p>
+<dl class="attribute">
+<dt id="rpqueue.EnqueuedTask.args">
+<code class="descname">args</code><a class="headerlink" href="#rpqueue.EnqueuedTask.args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the arguments that were passed to this task.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="rpqueue.EnqueuedTask.cancel">
+<code class="descname">cancel</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask.cancel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Cancel the task, if it has not been executed yet.</p>
+<p>Returns True if the cancellation was successful.
+Returns False if no information about task cancellation is known.
+Returns -1 if the task executed, saved a result, and the result was
+deleted.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="rpqueue.EnqueuedTask.result">
+<code class="descname">result</code><a class="headerlink" href="#rpqueue.EnqueuedTask.result" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the value returned by the task. Requires task.save_results &gt; 0.</p>
+<p>See :py:function:<code class="docutils literal notranslate"><span class="pre">result(taskid)</span></code></p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="rpqueue.EnqueuedTask.status">
+<code class="descname">status</code><a class="headerlink" href="#rpqueue.EnqueuedTask.status" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the status of this task.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="rpqueue.EnqueuedTask.wait">
+<code class="descname">wait</code><span class="sig-paren">(</span><em>timeout=30</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask.wait" title="Permalink to this definition">¶</a></dt>
+<dd><p>Will wait up to the specified timeout in seconds for the task to start
+execution, returning True if the task has at least started. Requires
+task.save_results &gt; 0, and you need to check before the results would
+have expired for consistent behavior (remember: we can’t check status on
+data that no longer exists).</p>
+</dd></dl>
+
+</dd></dl>
+
 <dl class="exception">
 <dt id="rpqueue.NoLock">
 <em class="property">exception </em><code class="descclassname">rpqueue.</code><code class="descname">NoLock</code><a class="headerlink" href="#rpqueue.NoLock" title="Permalink to this definition">¶</a></dt>
@@ -514,6 +560,22 @@ processor.</p>
 directly or via <code class="docutils literal notranslate"><span class="pre">**kwargs</span></code>.</p>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="function">
+<dt id="rpqueue.call_task">
+<code class="descclassname">rpqueue.</code><code class="descname">call_task</code><span class="sig-paren">(</span><em>name</em>, <em>queue</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.call_task" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calls a task with the given name, using the provided queue if the queue was
+otherwise not known. Returns an <code class="docutils literal notranslate"><span class="pre">EnqueuedTask</span></code>, which you can use to track
+task progress. Used via:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">t</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">call_task</span><span class="p">(</span><span class="s1">&#39;dotted.task_name&#39;</span><span class="p">,</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">QUEUE</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+<span class="n">t</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">t</span><span class="o">.</span><span class="n">status</span>
+<span class="n">t</span><span class="o">.</span><span class="n">result</span>
+</pre></div>
+</div>
+<p>If you want to see a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if your task is not known, pass
+<code class="docutils literal notranslate"><span class="pre">_verify_call=True</span></code> as a keyword argument.</p>
 </dd></dl>
 
 <dl class="function">

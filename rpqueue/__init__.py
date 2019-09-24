@@ -58,16 +58,17 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.31.2'
+VERSION = '0.32.0'
 
 RPQUEUE_CONFIGS = {}
 
 __all__ = ['VERSION', 'new_rpqueue', 'set_key_prefix',
     'set_redis_connection_settings', 'set_redis_connection',
-    'task', 'periodic_task', 'cron_task', 'Task', 'Data',
+    'task', 'periodic_task', 'cron_task', 'Task', 'EnqueuedTask', 'Data',
     'get_task', 'result', 'results',
     'set_priority', 'known_queues', 'queue_sizes', 'clear_queue',
-    'execute_tasks', 'SimpleLock', 'NoLock', 'script_load']
+    'execute_tasks', 'SimpleLock', 'NoLock', 'script_load',
+    'call_task', 'known_tasks']
 __all__.sort()
 
 def new_rpqueue(name, pfix=None):
@@ -126,7 +127,7 @@ _NAME_KEYS = dict(
     DATA_KEY = b'dataq:',
     DATAM_KEY = b'dataqm:',
     DATAV_KEY = b'dataqv:',
-
+    REGISTRY_KEY = b'taskregistry:',
 )
 # silence Pyflakes
 QUEUES_KNOWN = _NAME_KEYS['QUEUES_KNOWN']
@@ -144,6 +145,7 @@ VISIBILITY_KEY = _NAME_KEYS['VISIBILITY_KEY']
 DATA_KEY = _NAME_KEYS['DATA_KEY']
 DATAM_KEY = _NAME_KEYS['DATAM_KEY']
 DATAV_KEY = _NAME_KEYS['DATAV_KEY']
+REGISTRY_KEY = _NAME_KEYS['REGISTRY_KEY']
 KEY_PREFIX = b''
 
 def set_key_prefix(pfix):
@@ -160,6 +162,7 @@ def set_key_prefix(pfix):
 
 PY3 = sys.version_info >= (3, 0)
 _SB = (str, bytes) if PY3 else (str, unicode)
+REGISTRY_CHANGED = 0
 REGISTRY = {}
 NEVER_SKIP = set()
 SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
@@ -169,6 +172,9 @@ DEADLETTER_QUEUE = b'DEADLETTER_QUEUE'
 MINIMUM_DELAY = 1
 EXECUTE_TASKS = False
 QUEUE_ITEMS_PER_PASS = 100
+KEEP_REDIS_TASK_REGISTRY = False
+# If true, clears out the key before setting again
+REDIS_TASK_REGISTRY_AUTO_CLEAR = True
 
 REDIS_CONNECTION_SETTINGS = {}
 POOL = None
@@ -523,6 +529,111 @@ def _handle_delayed(conn, queues=None, timeout=1):
         return
 
     handle_delayed_lua_(conn, queues, timeout)
+
+def _to_str(v):
+    v = v or ''
+    if PY3:
+        return v if isinstance(v, str) else v.decode('latin-1')
+    return v if isinstance(v, unicode) else v.decode('latin-1')
+
+def _to_bytes(v):
+    v = v or b''
+    if PY3:
+        return v if isinstance(v, bytes) else v.encode('latin-1')
+    return v if isinstance(v, str) else v.encode('latin-1')
+
+def _update_redis_task_registry(last, conn=None):
+    global REGISTRY_CHANGED
+    last = last or {}
+    if not KEEP_REDIS_TASK_REGISTRY or not REGISTRY_CHANGED:
+        return last
+
+    new = {}
+    REGISTRY_CHANGED = 0
+    for name, task in REGISTRY.items():
+        queue, name, delay, attempts, retry_delay, save_results, vis_timeout, use_dead, delay
+        delay = task.delay
+        if isinstance(task.delay, CronTab):
+            delay = ' '.join(m.input for m in delay.matchers)
+        new[name] = json.dumps([_to_str(task.queue), name, delay, task.never_skip,
+            task.attempts, task.retry_delay, task.save_results,
+            task.vis_timeout, task.use_dead])
+
+    p = conn.pipeline(REDIS_TASK_REGISTRY_AUTO_CLEAR)
+    if last != new:
+        if REDIS_TASK_REGISTRY_AUTO_CLEAR:
+            p.delete(REGISTRY_KEY)
+        p.hmset(REGISTRY_KEY, new)
+        p.execute()
+
+    return new
+
+def _load_task_registry(conn=None, tasks={}):
+    tasks = tasks or conn.hgetall(REGISTRY_KEY)
+    for name, task_info in tasks.items():
+        if not isinstance(task_info, list):
+            task_info = json.loads(_to_str(task_info))
+
+        # we never have a local copy of the function
+        task_info.insert(2, None)
+        # json round-trip BS
+        task_info[0] = _to_bytes(task_info[0])
+        # But we create the task cache so we don't need to keep doing this crap
+        REGISTRY[name] = Task(*task_info)
+
+def call_task(name, queue, *args, **kwargs):
+    '''
+    Calls a task with the given name, using the provided queue if the queue was
+    otherwise not known. Returns an ``EnqueuedTask``, which you can use to track
+    task progress. Used via::
+
+        t = rpqueue.call_task('dotted.task_name', None or QUEUE, *args, **kw)
+        t.wait(1)
+        t.status
+        t.result
+
+    If you want to see a ``ValueError`` if your task is not known, pass
+    ``_verify_call=True`` as a keyword argument.
+
+    '''
+    name = _to_str(name)
+    verify = kwargs.pop("_verify_call", None)
+    if name not in REGISTRY:
+        conn = get_connection()
+        task_info = conn.hget(REGISTRY_KEY, name)
+        if not task_info and verify:
+            raise ValueError("Task name %s not known".format(name))
+        elif not task_info:
+            task_info = [queue or DEFAULT_QUEUE, name, 0, 0, 1, 0, 0, 0, 0]
+        else:
+            task_info = json.loads(task_info)
+        _load_task_registry(conn, {name: task_info})
+
+    return REGISTRY[name].execute(*args, **kwargs)
+
+class known_tasks:
+    '''
+    Read-only dict-like thing that offers access to tasks that have registeed,
+    or are known by rpqueue by enabling ``KEEP_REDIS_TASK_REGISTRY``. Returns
+    the ``Task`` to be executed. Used via::
+
+        t = rpqueue.known_tasks['dotted.task_name'].execute(*args, **kwargs)
+        t.wait(1)
+        t.status
+        t.result
+    '''
+    def __getitem__(self, name):
+        if name not in REGISTRY:
+            conn = get_connection()
+            task_info = conn.hget(REGISTRY_KEY, name)
+            if not task_info:
+                raise KeyError("Task name %s not known".format(name))
+            task_info = json.loads(task_info)
+            _load_task_registry(conn, {name: task_info})
+
+        return REGISTRY[name]
+
+known_tasks = known_tasks()
 
 def _gt(conn):
     t = conn.time()
@@ -902,7 +1013,6 @@ class Data(object):
         get_connection().delete(self.qkey, self.mkey, self.vkey)
 
 
-
 class Task(object):
     '''
     An object that represents a task to be executed. These will replace
@@ -951,6 +1061,8 @@ class Task(object):
         else:
             NEVER_SKIP.discard(name)
         REGISTRY[name] = self
+        global REGISTRY_CHANGED
+        REGISTRY_CHANGED = 1
         if self.delay:
             # periodic or cron task
             execute_delay = self.next()
@@ -1004,12 +1116,12 @@ class Task(object):
             ec = rpq._enqueue_call
             conn = rpq.get_connection()
             et = rpq._execute_task
-            enq = rpq._EnqueuedTask
+            enq = rpq.EnqueuedTask
         else:
             ec = _enqueue_call
             conn = get_connection()
             et = _execute_task
-            enq = _EnqueuedTask
+            enq = EnqueuedTask
 
         if kwargs.pop('execute_inline_now', None):
             # allow for testing/debugging to execute the task immediately
@@ -1097,9 +1209,10 @@ class _ExecutingTask(object):
         return "<ExecutingTask taskid=%s function=%s args=%r kwargs=%r>"%(
             self.taskid, self.task.name, self.args, self.kwargs)
 
-class _EnqueuedTask(object):
+class EnqueuedTask(object):
     '''
-    An object that allows for simple status checks on tasks to be executed.
+    An object that allows for simple status checks on tasks being executed right
+    now. Returned by task.execute() or call_task().
     '''
     __slots__ = 'name', 'taskid', 'queue', 'task'
     def __init__(self, name, taskid, queue, task=None):
@@ -1163,8 +1276,11 @@ class _EnqueuedTask(object):
 
     def wait(self, timeout=30):
         '''
-        Will wait up to the specified timeout for the task to start execution,
-        returning whether the task started execution.
+        Will wait up to the specified timeout in seconds for the task to start
+        execution, returning True if the task has at least started. Requires
+        task.save_results > 0, and you need to check before the results would
+        have expired for consistent behavior (remember: we can't check status on
+        data that no longer exists).
         '''
         end = time.time() + max(timeout, .01)
         while self.status != 'done' and end > time.time():
@@ -1386,8 +1502,10 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
         pp.daemon = True
         pp.start()
         sp.append(pp)
+    last = {}
     while not SHOULD_QUIT[0]:
         _handle_delayed(get_connection(), queues, 1)
+        last = _update_redis_task_registry(last, get_connection())
 
     log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
     # wait some time for processes to die...
