@@ -8,6 +8,7 @@ import unittest
 
 import rpqueue
 # make sure we're not hiding errors during tests
+rpq2 = rpqueue.new_rpqueue('test', b'tpfix')
 rpqueue.log_handler.setLevel(rpqueue.logging.DEBUG)
 
 rpqueue.DEFAULT_QUEUE = queue = b'TEST_QUEUE'
@@ -107,7 +108,7 @@ global_wait_test = wait_test
 scale = 1000
 
 class TestRPQueue(unittest.TestCase):
-    def setUp(self):
+    def _common(self):
         saw[0] = 0
         rpqueue.clear_queue(queue)
         rpqueue.clear_queue(queue + b'2')
@@ -116,6 +117,10 @@ class TestRPQueue(unittest.TestCase):
         rpqueue.clear_queue(queue + b'2', is_data=True)
         rpqueue.clear_queue(queue + b'3', is_data=True)
         rpqueue.clear_queue(rpqueue.DEADLETTER_QUEUE, is_data=True)
+        rpq2.clear_queue(queue, delete=True)
+
+    def setUp(self):
+        self._common()
         rpqueue.SHOULD_QUIT[0] = 0
         self.t, self.t2 = _start_task_processor()
 
@@ -125,6 +130,7 @@ class TestRPQueue(unittest.TestCase):
             self.t.terminate()
         if self.t2.is_alive():
             self.t2.terminate()
+        self._common()
         rpqueue.clear_queue(queue, delete=True)
         rpqueue.clear_queue(rpqueue.DEADLETTER_QUEUE, delete=True)
         task1.execute(1)
@@ -238,7 +244,6 @@ class TestRPQueue(unittest.TestCase):
         self.assertEqual(wt.result, 2)
 
     def test_instance(self):
-        rpq2 = rpqueue.new_rpqueue('test', 'tpfix')
         rpq2.log_handler.setLevel(rpqueue.logging.CRITICAL)
         @rpq2.task(queue=queue, save_results=30)
         def wait_test(arg):
@@ -362,6 +367,15 @@ class TestRPQueue(unittest.TestCase):
         self.assertRaises(ValueError, lambda: rpqueue.call_task('does_not_exist', None, verify=True))
         self.assertRaises(KeyError, lambda: rpqueue.known_tasks['does_not_exist'])
 
+    def test_data_delay(self):
+        data = list(range(1,6))
+        dq1 = rpqueue.Data(queue + b'1', attempts=1, vis_timeout=0, use_dead=False)
+        self.assertRaises(ValueError, lambda: dq1.put_data(data, delay=True))
+        dq1 = rpqueue.Data(queue + b'1', attempts=1, vis_timeout=1, use_dead=False)
+        dq1.put_data(data, delay=.25)
+        self.assertFalse(dq1.get_data(1))
+        time.sleep(.25)
+        self.assertTrue(dq1.get_data(1))
 
 if __name__ == '__main__':
     unittest.main()

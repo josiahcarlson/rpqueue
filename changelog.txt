@@ -1,3 +1,7 @@
+#---------------------------------- 0.32.1 -----------------------------------
+[added] the ability to add items to data queues in the future; see:
+    `Data.put_data(..., delay=...)`. Works similarly to how delayed tasks
+    work.
 #---------------------------------- 0.32.0 -----------------------------------
 [added] the ability for callers to call stubs instead of needing to have all of
     your task / caller code in the same repository. See:

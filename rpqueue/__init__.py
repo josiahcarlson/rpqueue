@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.32.0'
+VERSION = '0.32.1'
 
 RPQUEUE_CONFIGS = {}
 
@@ -434,7 +434,7 @@ local cutoff
 
 if #ARGV == 1 then
     cutoff = redis.call('time')
-    cutoff = cutoff[1] .. '.' .. cutoff[2]
+    cutoff = string.format("%s.%06d", cutoff[1], tonumber(cutoff[2]))
 else
     cutoff = ARGV[2]
 end
@@ -818,7 +818,7 @@ class Data(object):
         im, iv = pipe.execute()
         return (im - iv, iv)
 
-    def put_data(self, data, use_dead=None, is_one=False, chunksize=512):
+    def put_data(self, data, use_dead=None, is_one=False, chunksize=512, delay=0):
         '''
         Puts data items into the queue. Data is assumed to be a list of data
         items, each of which will be assigned a new UUID as an identifier before
@@ -828,11 +828,16 @@ class Data(object):
          - ``use_dead`` - if provided and true-ish, will spew attempts exceeded
            data items into data DEADLETTER_QUEUE (queue has a default, can be
            overridden here to enable on this inserted data)
-         - ``is_one`` - if you provide a list to ``data``, but just want that to be
-           one item, you can ensure that with ``is_one=True``
+         - ``is_one`` - if you provide a list to ``data``, but just want that to
+           be one item, you can ensure that with ``is_one=True``
          - ``chunksize`` - the number of items to insert per pipeline flush
+         - ``delay`` - if >0, will delay the inserted items from reading for the
+           provided number of seconds, requires ``vis_timeout`` > 0
 
         '''
+        delay = max(delay, 0)
+        if delay and self.vis_timeout <= 0:
+            raise ValueError("queue vis_timeout must be > 0 to delay items")
         if is_one:
             data = [data]
         use_dead = int(bool(self.use_dead if use_dead is None else use_dead))
@@ -841,12 +846,17 @@ class Data(object):
             proto['_attempts'] = self.attempts
         if use_dead:
             proto['_use_dead'] = use_dead
+        if delay:
+            proto['_attempts'] = proto.get('_attempts', 1) + 1
         proto = json.dumps(proto)
         conn = get_connection()
         t = _gt(conn)
+        if delay:
+            t2 = t + delay
         pipe = conn.pipeline(True)
         lq = DATA_KEY + self.queue
         hq = DATAM_KEY + self.queue
+        vq = DATAV_KEY + self.queue
         chunksize = max(chunksize, 1)
         added = {}
         add = {}
@@ -859,7 +869,10 @@ class Data(object):
                     pipe.rpush(lq, *list(add.values()))
                 else:
                     pipe.hmset(hq, add)
-                    pipe.rpush(lq, *list(add))
+                    if delay:
+                        _zadd(pipe, vq, {tid: t2 for tid in add})
+                    else:
+                        pipe.rpush(lq, *list(add))
                 t = _gt(pipe)
                 add = {}
         if add:
@@ -867,7 +880,10 @@ class Data(object):
                 pipe.rpush(lq, *list(add.values()))
             else:
                 pipe.hmset(hq, add)
-                pipe.rpush(lq, *list(add))
+                if delay:
+                    _zadd(pipe, vq, {tid: t2 for tid in add})
+                else:
+                    pipe.rpush(lq, *list(add))
                 pipe.execute()
 
         return added
@@ -1676,7 +1692,7 @@ def clear_queue(queue, conn=None, delete=False, is_data=False):
     if delete:
         pipeline.srem(QUEUES_KNOWN, queue)
         pipeline.zrem(QUEUES_PRIORITY, queue)
-    return pipeline.execute()[0]
+    return sum(pipeline.execute())
 
 def get_task(name):
     '''Get a task dynamically by name. The task's module must be loaded first.'''
