@@ -583,7 +583,7 @@ class _ExecutingTask(object):
         self.args = args
         self.kwargs = kwargs
         CURRENT_TASK.task = self
-        k = RESULT_KEY + self.taskid
+        k = RESULT_KEY + self.taskid if self.taskid is not None else RESULT_KEY
         want_status = self.taskid not in REGISTRY
         conn = get_connection()
         if want_status:
