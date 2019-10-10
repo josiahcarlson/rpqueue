@@ -575,7 +575,7 @@ class _ExecutingTask(object):
     __slots__ = 'task', 'taskid', 'args', 'kwargs'
     def __init__(self, task, taskid):
         self.task = task
-        self.taskid = taskid.encode('latin-1') if PY3 else taskid
+        self.taskid = taskid.encode('latin-1') if taskid is not None and PY3 else taskid
         self.args = None
         self.kwargs = None
 
