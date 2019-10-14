@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Description &#8212; RPQueue 0.32.1 documentation</title>
+    <title>Description &#8212; RPQueue 0.33.0 documentation</title>
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -61,7 +61,7 @@
 <li><a class="reference internal" href="#module-rpqueue" title="rpqueue"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">rpqueue</span></code></a></li>
 </ul>
 <p>Documentation for version:</p>
-<p>0.32.1</p>
+<p>0.33.0</p>
 <div class="section" id="description">
 <h1>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h1>
 <p>This package intends to offer a priority-based remote task queue solution
@@ -614,6 +614,32 @@ page for more information on the meaning of the schedule.</p>
 <code class="descclassname">rpqueue.</code><code class="descname">execute_tasks</code><span class="sig-paren">(</span><em>queues=None</em>, <em>threads_per_process=1</em>, <em>processes=1</em>, <em>wait_per_thread=1</em>, <em>module=None</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.execute_tasks" title="Permalink to this definition">¶</a></dt>
 <dd><p>Will execute tasks from the (optionally) provided queues until the first
 value in the global SHOULD_QUIT is considered false.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="rpqueue.flush_tasks">
+<code class="descclassname">rpqueue.</code><code class="descname">flush_tasks</code><span class="sig-paren">(</span><em>complete=False</em>, <em>force_delayed=False</em>, <em>wait_on_hidden=False</em>, <em>timeout=None</em>, <em>log_every=0</em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.flush_tasks" title="Permalink to this definition">¶</a></dt>
+<dd><p>Wait for all tasks currently in the queue to start executing, optionally
+waiting for their completion.</p>
+<p>Returns 3 lists: <code class="docutils literal notranslate"><span class="pre">done,</span> <span class="pre">started,</span> <span class="pre">waiting</span></code>. These represent the task
+ids that are in the <code class="docutils literal notranslate"><span class="pre">done</span></code>, <code class="docutils literal notranslate"><span class="pre">started</span></code>, and <code class="docutils literal notranslate"><span class="pre">waiting</span></code> states.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">complete</span></code> the argument is true-ish, we will wait for output / status
+returned by the task’s explicit completion before we consider the task
+complete. If not true-ish, we’ll consider a task complete if it has started
+at all (so started is empty in this case, as all are considered completed).</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">force_delayed</span></code> is true-ish, will force all delayed and periodic tasks
+to execute immediately, though we do not wait for, nor return the status of
+automatically-executed periodic tasks in our lists (only tasks explicitly
+executed with <code class="docutils literal notranslate"><span class="pre">`TASKX.execute(...)`</span></code>). Also implies <code class="docutils literal notranslate"><span class="pre">wait_on_hidden</span></code>.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">wait_on_hidden</span></code> is true-ish, will also wait on tasks that have already
+been started, if we are waiting for completion.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">timeout</span></code> is &gt;0, will wait up to that many seconds for the flush to
+finish. If timeout is None or &lt;0, we will wait up to 2**32 seconds. If the
+timeout expires, we will see items in waiting. If the timeout does not
+expire, and we complete without raising an exception, there should be no
+tasks in the waiting state.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">log_every</span></code> is &gt;0, will log our progress at the INFO level every
+<code class="docutils literal notranslate"><span class="pre">log_every</span></code> seconds until we are finished / timed out.</p>
 </dd></dl>
 
 <dl class="function">

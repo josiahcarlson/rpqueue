@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.32.1'
+VERSION = '0.33.0'
 
 RPQUEUE_CONFIGS = {}
 
@@ -68,7 +68,7 @@ __all__ = ['VERSION', 'new_rpqueue', 'set_key_prefix',
     'get_task', 'result', 'results',
     'set_priority', 'known_queues', 'queue_sizes', 'clear_queue',
     'execute_tasks', 'SimpleLock', 'NoLock', 'script_load',
-    'call_task', 'known_tasks']
+    'call_task', 'known_tasks', 'flush_tasks']
 __all__.sort()
 
 def new_rpqueue(name, pfix=None):
@@ -430,14 +430,14 @@ local t1 = 0
 local t2 = 0
 local t3 = {}
 redis.replicate_commands()
-local cutoff
+local cutoff1 = ARGV[2]
 
-if #ARGV == 1 then
-    cutoff = redis.call('time')
-    cutoff = string.format("%s.%06d", cutoff[1], tonumber(cutoff[2]))
-else
-    cutoff = ARGV[2]
+if #ARGV < 2 then
+    cutoff1 = redis.call('time')
+    cutoff1 = string.format("%s.%06d", cutoff1[1], tonumber(cutoff1[2]))
 end
+local cutoff2 = ARGV[3] or cutoff1
+local tasks = {}
 
 for i = 1, #KEYS, 5 do
     local queue = KEYS[i]
@@ -447,10 +447,13 @@ for i = 1, #KEYS, 5 do
     local dead = KEYS[i+4]
 
     -- handle delayed items
-    local items = redis.call('zrangebyscore', queue, '-inf', '(' .. cutoff, 'limit', 0, limit)
+    local items = redis.call('zrangebyscore', queue, '-inf', '(' .. cutoff1, 'limit', 0, limit)
 
     local isize = #items
     if isize > 0 then
+        if #ARGV == 3 then
+            tasks[messages] = {items}
+        end
         redis.call('zremrangebyrank', queue, 0, isize-1)
         redis.call('rpush', qnow, unpack(items))
         redis.call('zrem', vis, unpack(items))
@@ -458,9 +461,12 @@ for i = 1, #KEYS, 5 do
     end
 
     -- handle visibility timeouts and deadletter queue
-    items = redis.call('zrangebyscore', vis, '-inf','(' .. cutoff, 'limit', 0, limit)
+    items = redis.call('zrangebyscore', vis, '-inf','(' .. cutoff2, 'limit', 0, limit)
     isize = #items
     if isize > 0 then
+        if #ARGV == 3 then
+            tasks[messages] = {items, (tasks[messages] or {})[1]}
+        end
         for i, id in ipairs(items) do
             local odata = redis.call('hget', messages, id)
             redis.call('zrem', vis, id)
@@ -486,10 +492,22 @@ for i = 1, #KEYS, 5 do
     end
 end
 
-return run_again and 1 or 0
+run_again = run_again and 1 or 0
+if #ARGV == 3 then
+    return {run_again, cjson.encode(tasks)}
+end
+return run_again
 ''')
 
-def handle_delayed_lua_(conn, queues, timeout):
+def _merge(a, b):
+    for k, v in json.loads(b).items():
+        k = _to_bytes(k)
+        if k not in a:
+            a[k] = set()
+        for vv in v:
+            a[k].update([_to_bytes(vi) for vi in vv])
+
+def handle_delayed_lua_(conn, queues, timeout, delayed=False):
     '''
     Internal implementation detail of handling delayed requests. You shouldn't
     need to call this function directly.
@@ -510,11 +528,21 @@ def handle_delayed_lua_(conn, queues, timeout):
             VISIBILITY_KEY + q,
             NOW_KEY + DEADLETTER_QUEUE,
         ])
+    args = [QUEUE_ITEMS_PER_PASS, b'inf' if delayed else time.time()]
+    task_ids = {}
+    if delayed:
+        args.append(time.time())
     while not SHOULD_QUIT[0] and (time.time() <= to_end or first):
-        first = False
-        run_again = _handle_delayed_lua(conn, keys=_queues, args=[QUEUE_ITEMS_PER_PASS, time.time()])
+        run_again = _handle_delayed_lua(conn, keys=_queues, args=args)
+        if delayed:
+            run_again, tids = run_again
+            _merge(task_ids, tids)
         if not run_again:
-            time.sleep(.05)
+            first = False
+            if timeout:
+                time.sleep(.05)
+        args[-1] = time.time()
+    return task_ids
 
 def _handle_delayed(conn, queues=None, timeout=1):
     # find the set of queues for processing
@@ -634,6 +662,180 @@ class known_tasks:
         return REGISTRY[name]
 
 known_tasks = known_tasks()
+
+lua_setex = script_load('''
+for i=1, #KEYS do
+    if redis.call('EXISTS', KEYS[i]) == 1 then
+        redis.call('EXPIRE', KEYS[i], ARGV[1])
+    end
+end
+''')
+
+
+def flush_tasks(complete=False, force_delayed=False, wait_on_hidden=False, timeout=None, log_every=0):
+    '''
+    Wait for all tasks currently in the queue to start executing, optionally
+    waiting for their completion.
+
+    Returns 3 lists: ``done, started, waiting``. These represent the task
+    ids that are in the ``done``, ``started``, and ``waiting`` states.
+
+    If ``complete`` the argument is true-ish, we will wait for output / status
+    returned by the task's explicit completion before we consider the task
+    complete. If not true-ish, we'll consider a task complete if it has started
+    at all (so started is empty in this case, as all are considered completed).
+
+    If ``force_delayed`` is true-ish, will force all delayed and periodic tasks
+    to execute immediately, though we do not wait for, nor return the status of
+    automatically-executed periodic tasks in our lists (only tasks explicitly
+    executed with ```TASKX.execute(...)```). Also implies ``wait_on_hidden``.
+
+    If ``wait_on_hidden`` is true-ish, will also wait on tasks that have already
+    been started, if we are waiting for completion.
+
+    If ``timeout`` is >0, will wait up to that many seconds for the flush to
+    finish. If timeout is None or <0, we will wait up to 2**32 seconds. If the
+    timeout expires, we will see items in waiting. If the timeout does not
+    expire, and we complete without raising an exception, there should be no
+    tasks in the waiting state.
+
+    If ``log_every`` is >0, will log our progress at the INFO level every
+    ``log_every`` seconds until we are finished / timed out.
+
+    '''
+    conn = get_connection()
+    queues = known_queues()
+    task_ids = {}
+    if force_delayed:
+        # makes sure all delayed tasks are enqueued, and that we've got the list
+        # of tasks that we just kicked off
+        task_ids = handle_delayed_lua_(conn, queues, 0, force_delayed)
+    wait_on_hidden = force_delayed or wait_on_hidden
+
+    # At this point, all delayed tasks have been started per request, let's pull
+    # the known list of tasks + any hidden ones if they want.
+    # If we don't care about completion, then waiting for the last task that
+    # does not complete is good enough.
+    pipe = conn.pipeline(True)
+    for q in queues:
+        pipe.lrange(PNOW_KEY + q, 0, -1)
+        pipe.lrange(NOW_KEY + q, 0, -1)
+        if wait_on_hidden and complete:
+            pipe.zrange(VISIBILITY_KEY + q, 0, -1)
+
+    # messages_key -> set of task_ids waiting to start
+    per = 2 + bool(wait_on_hidden and complete)
+    r = REGISTRY
+    ts = _to_str
+    for i, ids in enumerate(pipe.execute()):
+        q = queues[int(i // per)]
+        mk = q
+        ids = [id for id in ids if ts(id) not in r]
+        if ids and mk not in task_ids:
+            task_ids[mk] = set()
+        if not complete and (not timeout or timeout < 0):
+            # only need the last non-repeating task to know we started all tasks
+            # in that specific queue.
+            ids = ids[-1:]
+        if mk not in task_ids:
+            task_ids[mk] = set()
+        task_ids[mk].update(ids)
+
+    # if we want things to complete, these are the keys we check
+    to_complete = set()
+    started = set()
+    are_complete = set()
+    if complete:
+        for v in task_ids.values():
+            to_complete.update(v)
+
+    if timeout is None or timeout < 0:
+        timeout = 2**32
+    print_next = time.time() + (2**32 if log_every <= 0 else log_every)
+    end = time.time() + timeout
+    first = 1
+    while (task_ids or to_complete) and (first or time.time() < end):
+        # see if tasks started
+        for q, tasks in list(task_ids.items()):
+            k = MESSAGES_KEY + q
+            vk = VISIBILITY_KEY + q
+            di = set()
+            c = 0
+            for t in tasks:
+                if t in are_complete:
+                    di.add(t)
+                    continue
+                pipe.hexists(k, t)
+                c += 1
+            for t in tasks:
+                if t in are_complete:
+                    continue
+                pipe.zscore(vk, t)
+            r = pipe.execute()
+            for t, e, vi in zip(list(tasks), r[:c], r[c:]):
+                if (not e) or vi is not None:
+                    tasks.discard(t)
+                    if complete:
+                        started.add(t)
+                    else:
+                        are_complete.add(t)
+
+            tasks -= di
+            if not tasks:
+                # queue is done
+                del task_ids[q]
+
+        # explicitly look to see if they have finished
+        if to_complete:
+            # make sure our started tasks keep information about themselves
+            if first and started:
+                lua_setex(conn, list(started), [60])
+            elif started:
+                lua_setex(pipe, list(started), [60])
+
+            tc = list(to_complete)
+            pipe.mget(*tc)
+            for t, v in zip(tc, pipe.execute()[-1]):
+                if v in (b'', u''):
+                    started.add(v)
+                elif v is None:
+                    if t not in are_complete:
+                        # known started: result data deleted, expired, or status
+                        # token expired.
+                        are_complete.add(t)
+                        started.discard(t)
+                        to_complete.discard(t)
+                    else:
+                        # Not started yet, or can be already finished in the
+                        # case where the task started after our per-queue check
+                        # above, but finished before our mget() call above. Will
+                        # answer which in the next pass :)
+                        pass
+                else:
+                    # have result data, we are done with these!
+                    are_complete.add(t)
+                    started.discard(t)
+                    to_complete.discard(t)
+
+        if time.time() >= print_next:
+            print_next = time.time() + log_every
+            pending = sum(len(v) for v in task_ids.values())
+            started = len(started)
+            done = len(are_complete)
+            started -= done
+            log_handler.info(
+                "waiting on %i tasks to start, %i to complete, %i already done"%(
+                    pending, started, done))
+
+        if task_ids or to_complete:
+            time.sleep(.05)
+        first = 0
+
+    unknown = set()
+    for v in task_ids.values():
+        unknown.update(v)
+
+    return list(are_complete), list(started), list(unknown)
 
 def _gt(conn):
     t = conn.time()
@@ -1062,10 +1264,12 @@ class Task(object):
                     MINIMUM_DELAY, delay)
             else:
                 delay = max(delay, 0)
+            log_handler.debug("Scheduling %s every %r seconds"%(name, delay))
         elif isinstance(delay, str) and CronTab.__slots__:
+            log_handler.debug("Scheduling %s crontab %r"%(name, delay))
             delay = CronTab(delay)
         elif isinstance(delay, CronTab) and CronTab.__slots__:
-            pass
+            log_handler.debug("WARNING: %s wants crontab %r, missing library"%(name, delay))
         else:
             _assert(False,
                 "Provided run_every or crontab argument value of %r not supported",

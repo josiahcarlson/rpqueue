@@ -377,5 +377,21 @@ class TestRPQueue(unittest.TestCase):
         time.sleep(.25)
         self.assertTrue(dq1.get_data(1))
 
+    def test_flush_tasks(self):
+        saw[0] = 0
+        t = time.time()
+        task1.execute(5, delay=100)
+        a, b, c = rpqueue.flush_tasks(complete=True, force_delayed=1)
+        d = time.time() - t
+        self.assertFalse(c)
+        self.assertFalse(b)
+        self.assertTrue(a)
+
+        # if this fails, we are broken
+        self.assertLess(d, 99)
+        # if this fails, we are slow
+        self.assertLess(d, .25)
+
+
 if __name__ == '__main__':
     unittest.main()

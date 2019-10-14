@@ -1,3 +1,10 @@
+#---------------------------------- 0.33.0 -----------------------------------
+[added] log messages for scheduled tasks if/when they are created, to help with
+    bad periodic delays or cron task delays. Requested by github user
+    https://github.com/tinkerer
+[added] rpqueue.flush_tasks() to finish outstanding tasks in the queue, intended
+    primarily to start tasks when you need them all to finish (testing, prod
+    resources going away, etc.)
 #---------------------------------- 0.32.1 -----------------------------------
 [added] the ability to add items to data queues in the future; see:
     `Data.put_data(..., delay=...)`. Works similarly to how delayed tasks
