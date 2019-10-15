@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.33.0'
+VERSION = '0.33.1'
 
 RPQUEUE_CONFIGS = {}
 
@@ -1631,7 +1631,7 @@ def periodic_task(run_every, queue=b'default', never_skip=False, attempts=1, ret
 
     '''
     _assert(isinstance(queue, bytes),
-        "queue name provided must be a string, not %r", queue)
+        "queue name provided must be bytes, not %r", queue)
     _assert(isinstance(run_every, _number_types_plus),
         "run_every provided must be an int, long, float, or timedelta, not %r",
         run_every)
@@ -1676,8 +1676,8 @@ def cron_task(crontab, queue=b'default', never_skip=False, attempts=1, retry_del
     if not CronTab.__slots__:
         raise Exception("You must have the 'crontab' module installed to use @cron_task")
 
-    _assert(isinstance(queue, str),
-        "queue name provided must be a string, not %r", queue)
+    _assert(isinstance(queue, bytes),
+        "queue name provided must be bytes, not %r", queue)
     _assert(isinstance(crontab, str),
         "crontab provided must be a string, not %r", crontab)
     crontab = CronTab(crontab)

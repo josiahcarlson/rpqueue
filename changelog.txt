@@ -1,3 +1,5 @@
+#---------------------------------- 0.33.1 -----------------------------------
+[fixed] fixed crontab queue definitions
 #---------------------------------- 0.33.0 -----------------------------------
 [added] log messages for scheduled tasks if/when they are created, to help with
     bad periodic delays or cron task delays. Requested by github user
