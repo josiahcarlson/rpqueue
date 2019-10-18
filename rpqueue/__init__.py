@@ -58,7 +58,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.33.1'
+VERSION = '0.33.2'
 
 RPQUEUE_CONFIGS = {}
 
@@ -1269,6 +1269,8 @@ class Task(object):
             log_handler.debug("Scheduling %s crontab %r"%(name, delay))
             delay = CronTab(delay)
         elif isinstance(delay, CronTab) and CronTab.__slots__:
+            log_handler.debug("Scheduling %s crontab %r"%(name, delay))
+        elif isinstance(delay, CronTab) and not CronTab.__slots__:
             log_handler.debug("WARNING: %s wants crontab %r, missing library"%(name, delay))
         else:
             _assert(False,

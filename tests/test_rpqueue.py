@@ -251,6 +251,13 @@ class TestRPQueue(unittest.TestCase):
             # testing :P
             return arg
 
+        if rpqueue.CronTab.__slots__:
+            saw[0] = 0
+            # we'll use per-second cron tasks :P
+            @rpq2.cron_task('* * * * * *', queue=queue)
+            def increment():
+                saw[0] += 1
+
         wt = global_wait_test.execute(0)
         time.sleep(1)
         self.assertEqual(wt.result, 0)
@@ -266,6 +273,8 @@ class TestRPQueue(unittest.TestCase):
         # wait for the runner to quit
         t1.join()
         t2.join()
+        if rpq2.CronTab.__slots__:
+            self.assertGreater(saw[0], 2)
 
     def test_queue_override(self):
         t = result_test.execute(5)
