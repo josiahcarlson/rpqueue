@@ -926,8 +926,8 @@ def execute_task_threads(queues=None, threads=1, wait_per_thread=1, module=None)
     if AFTER_FORK:
         try:
             AFTER_FORK()
-        except:
-            log_handler.exception("ERROR: Exception in AFTER_FORK function: %s", traceback.format_exc().rstrip())
+        except Exception as e:
+            log_handler.exception("ERROR: Exception in AFTER_FORK function: %s", str(e))
     st = []
     log_handler.info("PID %i executing tasks in %i threads %s", os.getpid(), threads, MESSAGES_KEY)
     for t in range(threads-1):
@@ -978,8 +978,8 @@ def _execute_task(work, conn):
         to_execute(*args, **kwargs)
     except (KeyboardInterrupt, SystemExit):
         raise
-    except:
-        log_handler.exception("ERROR: Exception in task %r: %s", to_execute, traceback.format_exc().rstrip())
+    except Exception as e:
+        log_handler.exception("ERROR: Exception in task %r: %s", to_execute, str(e))
     else:
         SUCCESS_LOG("SUCCESS: Task completed: %s %s", taskid, fname)
 
