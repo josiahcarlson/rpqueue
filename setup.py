@@ -10,7 +10,7 @@ except IOError:
 
 setup(
     name='rpqueue',
-    version=open('VERSION').read(),
+    version=open('VERSION').read().strip(),
     description='Use Redis as a priority-enabled and time-based task queue.',
     author='Josiah Carlson',
     author_email='josiah.carlson@gmail.com',
