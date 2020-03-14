@@ -46,7 +46,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.27.2'
+VERSION = '0.27.5'
 
 RPQUEUE_CONFIGS = {}
 

@@ -8,9 +8,12 @@ try:
 except IOError:
     long_description = ''
 
+with open('VERSION') as fi:
+    version = fi.read().strip()
+
 setup(
     name='rpqueue',
-    version=open('VERSION').read(),
+    version=version,
     description='Use Redis as a priority-enabled and time-based task queue.',
     author='Josiah Carlson',
     author_email='josiah.carlson@gmail.com',
