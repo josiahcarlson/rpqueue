@@ -1223,6 +1223,8 @@ if __name__ == '__main__':
     parser.add_option_group(vgroup)
     parser.add_option_group(dgroup)
     options, args = parser.parse_args()
+    if options.queue and isinstance(options.queue, str):
+        options.queue = options.queue.encode()
     if options.pwprompt:
         if options.passwd:
             print("You must pass either --password OR --pwprompt not both.")
