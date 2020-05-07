@@ -46,7 +46,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.27.5'
+VERSION = '0.27.6'
 
 RPQUEUE_CONFIGS = {}
 
@@ -1116,11 +1116,11 @@ def get_page(queue, page, per_page=50, conn=None):
         start = start - lt + len(tasks)
         end = start + per_page - 1 - len(tasks)
         tasks.extend(conn.zrange(QUEUE_KEY + queue, start, end, withscores=True))
-    stasks = [task if isinstance(task, str) else task[0] for task in tasks]
+    stasks = [task if isinstance(task, bytes) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
     for tid, msg in zip(tasks, messages):
-        if isinstance(tid, str):
+        if isinstance(tid, bytes):
             ts = '<now>'
         else:
             tid, ts = tid
@@ -1223,6 +1223,8 @@ if __name__ == '__main__':
     parser.add_option_group(vgroup)
     parser.add_option_group(dgroup)
     options, args = parser.parse_args()
+    if options.queue and isinstance(options.queue, str):
+        options.queue = options.queue.encode()
     if options.pwprompt:
         if options.passwd:
             print("You must pass either --password OR --pwprompt not both.")
@@ -1254,7 +1256,8 @@ if __name__ == '__main__':
                 out[0].extend(['args', 'kwargs'])
 
         for tid, ts, name, args, kwargs in items:
-            out.append([name, datetime.datetime.utcfromtimestamp(ts).isoformat(), tid])
+            datetime_ = datetime.datetime.utcfromtimestamp(ts).isoformat() if isinstance(ts, float) else ts
+            out.append([name, datetime_, tid])
             if options.sargs:
                 out[-1].extend([args, kwargs])
 

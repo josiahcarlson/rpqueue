@@ -29,6 +29,7 @@ if __name__ == '__main__':
     rpqueue.parser.add_option_group(rpqueue.cgroup)
     rpqueue.parser.add_option_group(rgroup)
     options, args = rpqueue.parser.parse_args()
+    args = [arg.encode() for arg in args if isinstance(arg, str)]
     if options.prefix:
         rpqueue.set_key_prefix(options.prefix)
 
