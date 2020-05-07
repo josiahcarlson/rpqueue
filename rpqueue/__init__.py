@@ -1116,12 +1116,12 @@ def get_page(queue, page, per_page=50, conn=None):
         start = start - lt + len(tasks)
         end = start + per_page - 1 - len(tasks)
         tasks.extend(conn.zrange(QUEUE_KEY + queue, start, end, withscores=True))
-    stasks = [task if isinstance(task, str) else task[0] for task in tasks]
+    stasks = [task if isinstance(task, bytes) else task[0] for task in tasks]
     messages = conn.hmget(MESSAGES_KEY + queue, stasks) if tasks else []
     out = []
     for tid, msg in zip(tasks, messages):
-        if isinstance(tid, str):
-            ts = '<now>'
+        if isinstance(tid, bytes):
+            ts = time.time()
         else:
             tid, ts = tid
         try:
