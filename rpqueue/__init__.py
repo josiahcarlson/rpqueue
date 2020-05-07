@@ -1256,7 +1256,7 @@ if __name__ == '__main__':
                 out[0].extend(['args', 'kwargs'])
 
         for tid, ts, name, args, kwargs in items:
-            datetime_ = datetime.datetime.utcfromtimestamp(ts).isoformat() if isinstance(ts, int) else ts
+            datetime_ = datetime.datetime.utcfromtimestamp(ts).isoformat() if isinstance(ts, float) else ts
             out.append([name, datetime_, tid])
             if options.sargs:
                 out[-1].extend([args, kwargs])
