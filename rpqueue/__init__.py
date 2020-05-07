@@ -1121,7 +1121,7 @@ def get_page(queue, page, per_page=50, conn=None):
     out = []
     for tid, msg in zip(tasks, messages):
         if isinstance(tid, bytes):
-            ts = time.time()
+            ts = '<now>'
         else:
             tid, ts = tid
         try:
@@ -1256,7 +1256,8 @@ if __name__ == '__main__':
                 out[0].extend(['args', 'kwargs'])
 
         for tid, ts, name, args, kwargs in items:
-            out.append([name, datetime.datetime.utcfromtimestamp(ts).isoformat(), tid])
+            datetime_ = datetime.datetime.utcfromtimestamp(ts).isoformat() if isinstance(ts, int) else ts
+            out.append([name, datetime_, tid])
             if options.sargs:
                 out[-1].extend([args, kwargs])
 
