@@ -261,4 +261,14 @@ Sponsors
 Don't like LGPL? Sponsor the project and get almost any license you want.
 
 This project has been partly sponsored by structd.com and hCaptcha.com, both of
-whom received licenses that match their needs appropriately.
+whom received licenses that match their needs appropriately. Historically,
+rpqueue has been used to help support the delivery of millions of food orders at
+chownow.com, billions of ad impressions for system1.com, and billions of
+captchas for hCaptcha.com.
+
+Thank you to our sponsors and those who have consumed our services.
+
+You are welcome for the good service.
+
+Your company link here.
+
