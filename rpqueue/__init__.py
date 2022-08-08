@@ -898,6 +898,15 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
         pp.start()
         sp.append(pp)
     while not SHOULD_QUIT[0]:
+        log_handler.debug("Test subprocesses")
+        sp_count = len(sp)
+        for pp in sp:
+            if not pp.is_alive():
+                sp_count = sp_count - 1
+        # No subprocesses left are alive
+        if sp_count <= 0:
+            log_handler.exception("All subprocesses are dead, exiting!")
+            sys.exit(1)
         _handle_delayed(get_connection(), queues, 1)
 
     log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
