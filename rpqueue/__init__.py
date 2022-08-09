@@ -46,7 +46,7 @@ import redis
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.27.6'
+VERSION = '0.27.7'
 
 RPQUEUE_CONFIGS = {}
 
@@ -899,6 +899,15 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
         sp.append(pp)
     while not SHOULD_QUIT[0]:
         _handle_delayed(get_connection(), queues, 1)
+        # Count subprocesses still alive
+        sp_count = len(sp)
+        for pp in sp:
+            if not pp.is_alive():
+                sp_count = sp_count - 1
+        # No subprocesses left are alive
+        if sp_count <= 0:
+            log_handler.exception("All subprocesses are dead, exiting!")
+            SHOULD_QUIT[0] = 1
 
     log_handler.info("Waiting for %i subprocesses to shutdown", len(sp))
     # wait some time for processes to die...
