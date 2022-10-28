@@ -1,18 +1,20 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Description &#8212; RPQueue 0.33.3 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Description &#8212; RPQueue 0.33.4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Description" href="index.html" />
@@ -32,8 +34,8 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="description">
-<h1>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h1>
+  <section id="description">
+<h1>Description<a class="headerlink" href="#description" title="Permalink to this heading">¶</a></h1>
 <p>This package intends to offer a priority-based remote task queue solution
 using Redis as the transport and persistence layer, and JSON for a common
 interchange format.</p>
@@ -46,13 +48,13 @@ for tasks with visibility timeouts, if the task rasises an exception or doesn’
 complete, it will be retried up to the limit of retries provided.</p>
 <p>See the <a class="reference internal" href="#retries">Retries</a> section below.</p>
 <p>Full documentation is available: <a class="reference external" href="https://josiahcarlson.github.io/rpqueue/">https://josiahcarlson.github.io/rpqueue/</a></p>
-</div>
-<div class="section" id="getting-started">
-<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h1>
+</section>
+<section id="getting-started">
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h1>
 <p>In order to execute tasks, you must ensure that rpqueue knows about your
 tasks that can be executed, you must configure rpqueue to connect to your
 Redis server, then you must start the task execution daemon:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mytasks</span> <span class="k">import</span> <span class="n">usertasks1</span><span class="p">,</span> <span class="n">usertasks2</span><span class="p">,</span> <span class="o">...</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mytasks</span> <span class="kn">import</span> <span class="n">usertasks1</span><span class="p">,</span> <span class="n">usertasks2</span><span class="p">,</span> <span class="o">...</span>
 <span class="kn">import</span> <span class="nn">rpqueue</span>
 
 <span class="n">rpqueue</span><span class="o">.</span><span class="n">set_redis_connection_settings</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span>
@@ -63,19 +65,19 @@ Redis server, then you must start the task execution daemon:</p>
 you must provide the name of a module or package that imports all modules or
 packages that define tasks that you want to run. For example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># tasks.py</span>
-<span class="kn">from</span> <span class="nn">tasks</span> <span class="k">import</span> <span class="n">accounting</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">,</span> <span class="o">...</span>
+<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">accounting</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">,</span> <span class="o">...</span>
 <span class="c1"># any other imports or configuration necessary, put them here</span>
 
 <span class="c1"># run from the command-line</span>
 <span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">run</span> <span class="o">--</span><span class="n">module</span><span class="o">=</span><span class="n">tasks</span> <span class="o">--</span><span class="n">host</span><span class="o">=...</span> <span class="o">--</span><span class="n">port</span><span class="o">=...</span> <span class="o">--</span><span class="n">db</span><span class="o">=...</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="example-uses">
-<h1>Example uses<a class="headerlink" href="#example-uses" title="Permalink to this headline">¶</a></h1>
+</section>
+<section id="example-uses">
+<h1>Example uses<a class="headerlink" href="#example-uses" title="Permalink to this heading">¶</a></h1>
 <p>Say that you have a module <code class="docutils literal notranslate"><span class="pre">usertasks1</span></code> with a task to be executed called
 <code class="docutils literal notranslate"><span class="pre">echo_to_stdout</span></code>. Your module may look like the following:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rpqueue</span> <span class="k">import</span> <span class="n">task</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rpqueue</span> <span class="kn">import</span> <span class="n">task</span>
 
 <span class="nd">@task</span>
 <span class="k">def</span> <span class="nf">echo_to_stdout</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
@@ -95,9 +97,9 @@ packages that define tasks that you want to run. For example:</p>
     <span class="k">pass</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="retries">
-<h1>Retries<a class="headerlink" href="#retries" title="Permalink to this headline">¶</a></h1>
+</section>
+<section id="retries">
+<h1>Retries<a class="headerlink" href="#retries" title="Permalink to this heading">¶</a></h1>
 <p>Tasks may be provided an optional <code class="docutils literal notranslate"><span class="pre">attempts</span></code> argument, which specifies the
 total number of times the task will try to be executed before failing. By
 default, all tasks have <code class="docutils literal notranslate"><span class="pre">attempts</span></code> set at 1, unless otherwise specified:</p>
@@ -118,8 +120,8 @@ try has value=3, attempts=3, and fails. The second pass has value=2,
 attempts=2, and fails. The third pass has value=1, attempts=1, fails, and the
 retry returns without retrying. The <code class="docutils literal notranslate"><span class="pre">attempts</span></code> value is the total number of
 attempts, including the first, and all retries.</p>
-<div class="section" id="automatic-retries-with-vis-timeout">
-<h2>Automatic retries with vis_timeout<a class="headerlink" href="#automatic-retries-with-vis-timeout" title="Permalink to this headline">¶</a></h2>
+<section id="automatic-retries-with-vis-timeout">
+<h2>Automatic retries with vis_timeout<a class="headerlink" href="#automatic-retries-with-vis-timeout" title="Permalink to this heading">¶</a></h2>
 <p>Included with rpqueue 0.30.0 or later, you can give tasks (and now data queues)
 a visibility timeout, which is (per Amazon SQS-style semantics) a time for how
 long the task has to execute correctly before being automatically re-entered
@@ -133,9 +135,9 @@ into the queue.:</p>
     <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span> <span class="c1"># fail silently</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="deadletter-task-queue">
-<h2>Deadletter task queue<a class="headerlink" href="#deadletter-task-queue" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="deadletter-task-queue">
+<h2>Deadletter task queue<a class="headerlink" href="#deadletter-task-queue" title="Permalink to this heading">¶</a></h2>
 <p>If you would like to know which tasks failed, failed calls can be automatically
 entered into a deadletter queue.:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@rpqueue</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -151,10 +153,10 @@ entered into a deadletter queue.:</p>
 </pre></div>
 </div>
 <p>See <code class="docutils literal notranslate"><span class="pre">help(rpqueue.Data)</span></code> for more.</p>
-</div>
-</div>
-<div class="section" id="waiting-for-task-execution">
-<h1>Waiting for task execution<a class="headerlink" href="#waiting-for-task-execution" title="Permalink to this headline">¶</a></h1>
+</section>
+</section>
+<section id="waiting-for-task-execution">
+<h1>Waiting for task execution<a class="headerlink" href="#waiting-for-task-execution" title="Permalink to this heading">¶</a></h1>
 <p>As of version .19, RPQueue offers the ability to wait on a task until it
 begins execution:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span>
@@ -171,9 +173,9 @@ begins execution:</p>
 <p>With the ability to wait for a task to complete, you can have the ability to
 add deadlines by inserting a call to <code class="docutils literal notranslate"><span class="pre">executing_task.cancel()</span></code> in the else
 block above.</p>
-</div>
-<div class="section" id="automatically-storing-results-of-tasks">
-<h1>Automatically storing results of tasks<a class="headerlink" href="#automatically-storing-results-of-tasks" title="Permalink to this headline">¶</a></h1>
+</section>
+<section id="automatically-storing-results-of-tasks">
+<h1>Automatically storing results of tasks<a class="headerlink" href="#automatically-storing-results-of-tasks" title="Permalink to this heading">¶</a></h1>
 <p>As of version .19, RPQueue offers the ability to store the result returned by
 a task as it completes:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">save_results</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
@@ -188,11 +190,11 @@ a task as it completes:</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">save_results</span></code> argument can be passed to tasks, periodic tasks, and even
 cron tasks (described below). The value passed will be how long the result is
 stored in Redis, in seconds. All results must be json-encodable.</p>
-</div>
-<div class="section" id="additional-features">
-<h1>Additional features<a class="headerlink" href="#additional-features" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="crontab">
-<h2>Crontab<a class="headerlink" href="#crontab" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="additional-features">
+<h1>Additional features<a class="headerlink" href="#additional-features" title="Permalink to this heading">¶</a></h1>
+<section id="crontab">
+<h2>Crontab<a class="headerlink" href="#crontab" title="Permalink to this heading">¶</a></h2>
 <p>Support for cron_tasks using a crontab-like syntax requires the Python crontab
 module: <a class="reference external" href="http://pypi.python.org/pypi/crontab/">http://pypi.python.org/pypi/crontab/</a> , allowing for:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@cron_task</span><span class="p">(</span><span class="s1">&#39;0 5 tue * *&#39;</span><span class="p">)</span>
@@ -201,19 +203,18 @@ module: <a class="reference external" href="http://pypi.python.org/pypi/crontab/
     <span class="k">pass</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="data-queues">
-<h2>Data queues<a class="headerlink" href="#data-queues" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="data-queues">
+<h2>Data queues<a class="headerlink" href="#data-queues" title="Permalink to this heading">¶</a></h2>
 <p>Put data in queues, not tasks. I mean, should have probably been here from the
 start, but it’s here now.</p>
-<dl class="docutils">
-<dt>Convenient features:</dt>
-<dd><ul class="first last simple">
-<li>1-1000 data items per read, at your discretion</li>
-<li><code class="docutils literal notranslate"><span class="pre">vis_timeout</span></code></li>
-<li><code class="docutils literal notranslate"><span class="pre">attempts</span></code></li>
-<li><code class="docutils literal notranslate"><span class="pre">use_dead</span></code></li>
-<li>refresh data if you want to keep working on it (we don’t identify the reader, so you should use an explicit lock if you want guaranteed exclusivity)</li>
+<dl class="simple">
+<dt>Convenient features:</dt><dd><ul class="simple">
+<li><p>1-1000 data items per read, at your discretion</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">vis_timeout</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">attempts</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">use_dead</span></code></p></li>
+<li><p>refresh data if you want to keep working on it (we don’t identify the reader, so you should use an explicit lock if you want guaranteed exclusivity)</p></li>
 </ul>
 </dd>
 </dl>
@@ -274,10 +275,10 @@ start, but it’s here now.</p>
     <span class="c1"># aggregate_queue.done_data(list(data))</span>
 </pre></div>
 </div>
-</div>
-</div>
-<div class="section" id="sponsors">
-<h1>Sponsors<a class="headerlink" href="#sponsors" title="Permalink to this headline">¶</a></h1>
+</section>
+</section>
+<section id="sponsors">
+<h1>Sponsors<a class="headerlink" href="#sponsors" title="Permalink to this heading">¶</a></h1>
 <p>Don’t like LGPL? Sponsor the project and get almost any license you want.</p>
 <p>This project has been partly sponsored by structd.com and hCaptcha.com, both of
 whom received licenses that match their needs appropriately. Historically,
@@ -287,7 +288,7 @@ captchas for hCaptcha.com.</p>
 <p>Thank you to our sponsors and those who have consumed our services.</p>
 <p>You are welcome for the good service.</p>
 <p>Your company link here.</p>
-</div>
+</section>
 
 
           </div>
@@ -334,17 +335,15 @@ captchas for hCaptcha.com.</p>
 </ul>
 </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>document.getElementById('searchbox').style.display = "block"</script>
 
 
 
@@ -361,7 +360,7 @@ captchas for hCaptcha.com.</p>
       &copy;2016, Josiah Carlson.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 5.3.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

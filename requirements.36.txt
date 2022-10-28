@@ -1,0 +1,2 @@
+# last supported for 3.6 and prior
+redis==4.2

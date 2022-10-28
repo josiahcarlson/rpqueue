@@ -3,7 +3,7 @@
 rpqueue (Redis Priority Queue)
 
 Originally written July 5, 2011
-Copyright 2011-2019 Josiah Carlson
+Copyright 2011-2022 Josiah Carlson
 Released under the GNU LGPL v2.1
 available: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
@@ -15,10 +15,7 @@ import datetime
 from hashlib import sha1
 import imp
 import itertools
-try:
-    import simplejson as json
-except ImportError:
-    import json
+import json
 import logging
 import multiprocessing
 import os
@@ -45,6 +42,14 @@ STRICT_REDIS = redis.StrictRedis if hasattr(redis, 'StrictRedis') else None
 STRICT_PIPE = redis.StrictPipeline if hasattr(redis, 'StrictPipeline') else None
 STRICT_CONNS = STRICT_REDIS, STRICT_PIPE
 
+if (3, 4) <= sys.version_info <= (3, 5):
+    def _preload(value):
+        if isinstance(value, bytes):
+            value = value.decode(sys.getdefaultencoding())
+        return value
+else:
+    _preload = lambda value: value
+
 def _zadd(conn, key, data):
     if NEW_CLIENT:
         return conn.zadd(key, data)
@@ -58,7 +63,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.33.3'
+VERSION = '0.33.4'
 
 RPQUEUE_CONFIGS = {}
 
@@ -500,7 +505,7 @@ return run_again
 ''')
 
 def _merge(a, b):
-    for k, v in json.loads(b).items():
+    for k, v in json.loads(_preload(b)).items():
         k = _to_bytes(k)
         if k not in a:
             a[k] = set()
@@ -1141,7 +1146,7 @@ class Data(object):
             if vis_timeout is None or vis_timeout >= 0:
                 pipe.ltrim(qk, items, -1)
             data = pipe.execute()[0]
-            return {d[0]: d for d in map(load, data)}
+            return {d[0]: d for d in map(load, map(_preload, data))}
 
         out = {}
         keys = [
@@ -1176,7 +1181,7 @@ class Data(object):
 
             for item in data_items:
                 if item:
-                    item = load(item)
+                    item = load(_preload(item))
                     if self.is_tasks:
                         out[item[0]] = item
                     else:

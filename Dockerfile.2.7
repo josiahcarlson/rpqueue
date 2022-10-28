@@ -1,0 +1,14 @@
+FROM python:2.7
+WORKDIR /app
+
+COPY requirements.36.txt requirements.txt
+
+RUN python2.7 -m pip install -r requirements.txt
+
+# need rpqueue
+COPY rpqueue/*.py rpqueue/
+# and need the tests too
+COPY tests/* rpqueue_tests/
+
+# Note: needs access to Redis; assumes localhost:6879
+CMD ["python2.7", "-m", "rpqueue_tests.test_rpqueue"]

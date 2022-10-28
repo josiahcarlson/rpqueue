@@ -1,0 +1,15 @@
+FROM python:3.6
+
+WORKDIR /app
+
+COPY requirements.36.txt requirements.txt
+
+RUN python3.6 -m pip install -r requirements.txt
+
+# need rpqueue
+COPY rpqueue/*.py rpqueue/
+# and need the tests too
+COPY tests/* rpqueue_tests/
+
+# Note: needs access to Redis; assumes localhost:6879
+CMD ["python3.6", "-m", "rpqueue_tests.test_rpqueue"]

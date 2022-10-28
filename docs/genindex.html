@@ -1,19 +1,19 @@
 
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Index &#8212; RPQueue 0.33.3 documentation</title>
-    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-    <script type="text/javascript" src="_static/jquery.js"></script>
-    <script type="text/javascript" src="_static/underscore.js"></script>
-    <script type="text/javascript" src="_static/doctools.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; RPQueue 0.33.4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
     <link rel="index" title="Index" href="#" />
     <link rel="search" title="Search" href="search.html" />
    
@@ -43,6 +43,7 @@
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#K"><strong>K</strong></a>
+ | <a href="#M"><strong>M</strong></a>
  | <a href="#N"><strong>N</strong></a>
  | <a href="#P"><strong>P</strong></a>
  | <a href="#Q"><strong>Q</strong></a>
@@ -55,7 +56,7 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="index.html#rpqueue.EnqueuedTask.args">args (rpqueue.EnqueuedTask attribute)</a>
+      <li><a href="index.html#rpqueue.EnqueuedTask.args">args (rpqueue.EnqueuedTask property)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -134,6 +135,19 @@
   </ul></td>
 </tr></table>
 
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    module
+
+      <ul>
+        <li><a href="index.html#module-rpqueue">rpqueue</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -175,18 +189,23 @@
 </li>
       <li><a href="index.html#rpqueue.Data.refresh_data">refresh_data() (rpqueue.Data method)</a>
 </li>
-      <li><a href="index.html#rpqueue.EnqueuedTask.result">result (rpqueue.EnqueuedTask attribute)</a>
+      <li><a href="index.html#rpqueue.EnqueuedTask.result">result (rpqueue.EnqueuedTask property)</a>
+</li>
+      <li><a href="index.html#rpqueue.result">result() (in module rpqueue)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="index.html#rpqueue.result">result() (in module rpqueue)</a>
-</li>
       <li><a href="index.html#rpqueue.results">results() (in module rpqueue)</a>
 </li>
       <li><a href="index.html#rpqueue.Task.retry">retry() (rpqueue.Task method)</a>
 </li>
-      <li><a href="index.html#module-rpqueue">rpqueue (module)</a>
+      <li>
+    rpqueue
+
+      <ul>
+        <li><a href="index.html#module-rpqueue">module</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -207,7 +226,7 @@
 </li>
       <li><a href="index.html#rpqueue.SimpleLock">SimpleLock (class in rpqueue)</a>
 </li>
-      <li><a href="index.html#rpqueue.EnqueuedTask.status">status (rpqueue.EnqueuedTask attribute)</a>
+      <li><a href="index.html#rpqueue.EnqueuedTask.status">status (rpqueue.EnqueuedTask property)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -269,17 +288,15 @@
 </ul>
 </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>document.getElementById('searchbox').style.display = "block"</script>
 
 
 
@@ -296,7 +313,7 @@
       &copy;2016, Josiah Carlson.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 5.3.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
     </div>

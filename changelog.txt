@@ -1,3 +1,15 @@
+#---------------------------------- 0.33.4 -----------------------------------
+[added] Dockerfile and docker-compose examples for testing every supported
+    version of Python + rpqueue we support.
+[removed] References to Python 2.6 and 3.3 in supported versions (2.6 has no
+    available container, 3.3 has weird protocol issues in Redis)
+[fixed] Supported versions of Python references in setup.py .
+[fixed] issue with loading some data in Python 3.4 and 3.5 (not present in
+    other versions)
+[fixed] doc generation is now inside a container, so no more local system
+    pollution
+#---------------------------------- 0.33.3 -----------------------------------
+[added] sponsorship docs
 #---------------------------------- 0.33.2 -----------------------------------
 [fixed] fixed crontab queue definitions, again :/
 #---------------------------------- 0.33.1 -----------------------------------

@@ -7,12 +7,22 @@ import time
 import unittest
 
 import rpqueue
+
 # make sure we're not hiding errors during tests
 rpq2 = rpqueue.new_rpqueue('test', b'tpfix')
 rpqueue.log_handler.setLevel(rpqueue.logging.DEBUG)
 
 rpqueue.DEFAULT_QUEUE = queue = b'TEST_QUEUE'
 rpqueue.DEADLETTER_QUEUE = b'TEST_DEADLETTER_QUEUE'
+
+if __name__ == '__main__':
+    import os
+    _host = os.environ.get('REDIS_HOST', 'localhost')
+    _port = int(os.environ.get('REDIS_PORT', '6379'))
+    _db = int(os.environ.get('REDIS_DB', '15'))
+    rpqueue.set_redis_connection_settings(host=_host, port=_port, db=_db)
+    rpq2.set_redis_connection_settings(host=_host, port=_port, db=_db)
+    print("set connection setings!")
 
 def wrap(f):
     def call(*args):
@@ -48,9 +58,12 @@ def taskr2(v1, v2, **kwargs):
     else:
         saw[0] = v2
 
+class ExpectedException(Exception):
+    pass
+
 @rpqueue.task(queue=queue)
 def taske():
-    raise Exception
+    raise ExpectedException("ignore me during tests, I should be logging")
 
 @rpqueue.task(queue=queue)
 def speed():
@@ -293,7 +306,7 @@ class TestRPQueue(unittest.TestCase):
         time.sleep(3)
         items = rpqueue.get_page(rpqueue.DEADLETTER_QUEUE, 0, per_page=3)
         self.assertEqual(len(items), 1)
-        item0 = json.loads(items[0])
+        item0 = json.loads(rpqueue._preload(items[0]))
         self.assertEqual(item0[1], "__main__.vis_test1")
         self.assertEqual(item0[2], [5])
         self.assertEqual(t3.result, 15)
