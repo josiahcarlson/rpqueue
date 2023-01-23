@@ -153,7 +153,7 @@ LOG_LEVEL = 'debug'
 logging.basicConfig()
 log_handler = logging.root
 
-SUCCESS_LOG_LEVEL = 'debug'
+SUCCESS_LOG_LEVEL = 'info'
 AFTER_FORK = None
 
 CURRENT_TASK = threading.local()
@@ -237,7 +237,7 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
         pipeline.zscore(qkey, taskid)
         last, current = pipeline.execute()
         if current or (last and time.time()-last < REENTRY_RETRY):
-            log_handler.debug("SKIPPED: %s %s", taskid, fname)
+            log_handler.info("SKIPPED: %s %s", taskid, fname)
             return taskid
 
     message = json.dumps([taskid, fname, args, kwargs, time.time() + delay])
@@ -253,9 +253,9 @@ def _enqueue_call(conn, queue, fname, args, kwargs, delay=0, taskid=None):
     pipeline.hincrby(SEEN_KEY, queue, 1)
     pipeline.execute()
     if delay:
-        log_handler.debug("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts))
+        log_handler.info("SENT: %s %s for %r", taskid, fname, datetime.datetime.utcfromtimestamp(ts))
     else:
-        log_handler.debug("SENT: %s %s", taskid, fname)
+        log_handler.info("SENT: %s %s", taskid, fname)
     # return the taskid, to determine whether the task has been started or not
     return taskid
 
@@ -971,14 +971,14 @@ def _execute_task(work, conn):
 
     global SUCCESS_LOG
     if SUCCESS_LOG is None:
-        SUCCESS_LOG = getattr(log_handler, SUCCESS_LOG_LEVEL.lower(), log_handler.debug)
+        SUCCESS_LOG = getattr(log_handler, SUCCESS_LOG_LEVEL.lower(), log_handler.info)
 
     now = datetime.datetime.utcnow()
     jitter = time.time() - scheduled
-    log_handler.debug("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
+    log_handler.info("RECEIVED: %s %s at %r (%r late)", taskid, fname, now, jitter)
 
     if fname not in REGISTRY:
-        log_handler.debug("ERROR: Missing function %s in registry", fname)
+        log_handler.info("ERROR: Missing function %s in registry", fname)
         return
 
     to_execute = REGISTRY[fname](taskid, True)
