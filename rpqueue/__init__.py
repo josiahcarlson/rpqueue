@@ -149,7 +149,7 @@ REDIS_CONNECTION_SETTINGS = {}
 POOL = None
 
 LOG_LEVELS = dict((v, getattr(logging, v)) for v in ['DEBUG', 'INFO', 'WARNING', 'ERROR'])
-LOG_LEVEL = 'debug'
+LOG_LEVEL = 'info'
 logging.basicConfig()
 log_handler = logging.root
 
@@ -318,7 +318,7 @@ def _get_work(conn, queues=None, timeout=1):
         if item_id == work[1]:
             # periodic or cron task, re-schedule it
             if item_id not in REGISTRY:
-                log_handler.debug("ERROR: Missing function %s in registry", item_id)
+                log_handler.info("ERROR: Missing function %s in registry", item_id)
                 continue
             sch = work[-1] if item_id in NEVER_SKIP else time.time()
             delay = REGISTRY[item_id].next(sch)
@@ -492,7 +492,7 @@ class Task(object):
         original function inline, use: ``my_task.function(...)`` .
         '''
         if not taskid and not nowarn:
-            log_handler.debug("You probably intended to call the function: %s, you are half-way there", self.name)
+            log_handler.info("You probably intended to call the function: %s, you are half-way there", self.name)
         return _ExecutingTask(self, taskid)
 
     def next(self, now=None):
