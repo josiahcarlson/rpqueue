@@ -55,9 +55,8 @@ compose-down-%:
 
 testall:
 	# they use the same Redis, so can't run in parallel
-	make -j1 test-3.11 test-3.10 test-3.9 test-3.8 test-3.7 test-3.6 test-3.5 test-3.4 test-2.7
-	# Python
-	# test-3.3
+	make -j1 test-3.11 test-3.10 test-3.9 test-3.8 test-3.7 test-3.6
+	# EOL :/ test-3.5 test-3.4 test-3.3 test-2.7
 
 test-%:
 	# the test container runs the tests on up, then does an exit 0 when done
@@ -74,7 +73,7 @@ upload:
 docs:
 	python -c "import rpqueue; open('VERSION', 'w').write(rpqueue.VERSION);"
 	make compose-build-docs
-	docker-compose -f docker-compose.docs.yaml -- run rpqueue-test-docs $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	docker-compose -f docker-compose.docs.yaml run rpqueue-test-docs $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	cp -r $(BUILDDIR)/html/. docs
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

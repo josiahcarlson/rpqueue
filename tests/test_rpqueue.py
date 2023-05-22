@@ -22,6 +22,8 @@ if __name__ == '__main__':
     _db = int(os.environ.get('REDIS_DB', '15'))
     rpqueue.set_redis_connection_settings(host=_host, port=_port, db=_db)
     rpq2.set_redis_connection_settings(host=_host, port=_port, db=_db)
+    rpqueue.SHOULD_QUIT[0] = 0
+    rpq2.SHOULD_QUIT[0] = 0
     print("set connection setings!")
 
 def wrap(f):
@@ -31,7 +33,7 @@ def wrap(f):
     return call
 
 def _start_task_processor(rpqueue=rpqueue):
-    t = multiprocessing.Process(target=wrap(rpqueue._execute_tasks), args=([queue],))
+    t = multiprocessing.Process(target=wrap(rpqueue.execute_task_threads), args=([queue],))
     t.daemon = True
     t.start()
     t2 = multiprocessing.Process(target=wrap(rpqueue._handle_delayed), args=(None, None, 60))

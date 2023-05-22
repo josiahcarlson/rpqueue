@@ -1,3 +1,7 @@
+#---------------------------------- 0.33.5 -----------------------------------
+[fixed] on some runtime virtualization platforms, /dev/shm is not available.
+    We work-around this by not using multiprocessing on those platforms, and
+    reducing processes to 1.
 #---------------------------------- 0.33.4 -----------------------------------
 [added] Dockerfile and docker-compose examples for testing every supported
     version of Python + rpqueue we support.

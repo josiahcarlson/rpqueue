@@ -63,7 +63,7 @@ def _setex(conn, key, value, time):
 if list(map(int, redis.__version__.split('.'))) < [2, 4, 12]:
     raise Exception("Upgrade your Redis client to version 2.4.12 or later")
 
-VERSION = '0.33.4'
+VERSION = '0.33.5'
 
 RPQUEUE_CONFIGS = {}
 
@@ -165,12 +165,40 @@ def set_key_prefix(pfix):
     global KEY_PREFIX
     KEY_PREFIX = pfix
 
+class SharedMemoryQuit:
+    """
+    This is a deferred object simply to make sure that this is usable from
+    sources without /dev/shm
+    """
+    def __init__(self):
+        self._v = None
+
+    def _init(self):
+        if not self._v:
+            try:
+                self._v = multiprocessing.Array('i', (0,), lock=False)
+            except:
+                # No /dev/shm? Probably AWS lambda. That's fine.
+                # Just run directly via execute task / use to trigger tasks
+                # running elsewhere / use for data queues
+                log_handler.warning("/dev/shm not available, multiple process may not work properly")
+                raise SystemExit("broken")
+                self._v = [0]
+
+    def __getitem__(self, entry):
+        self._init()
+        return self._v[entry]
+
+    def __setitem__(self, entry, value):
+        self._init()
+        self._v[entry] = value
+
 PY3 = sys.version_info >= (3, 0)
 _SB = (str, bytes) if PY3 else (str, unicode)
 REGISTRY_CHANGED = 0
 REGISTRY = {}
 NEVER_SKIP = set()
-SHOULD_QUIT = multiprocessing.Array('i', (0,), lock=False)
+SHOULD_QUIT = SharedMemoryQuit()
 REENTRY_RETRY = 5
 DEFAULT_QUEUE = b'default'
 DEADLETTER_QUEUE = b'DEADLETTER_QUEUE'
@@ -584,7 +612,6 @@ def _update_redis_task_registry(last, conn=None):
     new = {}
     REGISTRY_CHANGED = 0
     for name, task in REGISTRY.items():
-        queue, name, delay, attempts, retry_delay, save_results, vis_timeout, use_dead, delay
         delay = task.delay
         if isinstance(task.delay, CronTab):
             delay = ' '.join(m.input for m in delay.matchers)
@@ -1708,6 +1735,14 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     '''
     global EXECUTE_TASKS
     EXECUTE_TASKS = True
+    # make sure to initialize prior to fork
+    SHOULD_QUIT[0] = 0
+    no_dev_shm = False
+    if type(SHOULD_QUIT._v) is list and processes > 1:
+        log_handler.warning("/dev/shm is not available, reducing processes to 1")
+        processes = 1
+        no_dev_shm = True
+
     signal.signal(signal.SIGUSR1, quit_on_signal)
     signal.signal(signal.SIGTERM, quit_on_signal)
     log_handler.setLevel(LOG_LEVELS[LOG_LEVEL.upper()])
@@ -1724,11 +1759,21 @@ def execute_tasks(queues=None, threads_per_process=1, processes=1, wait_per_thre
     processes = max(processes, 1)
     __import__(module) # for any connection modification side-effects
     log_handler.info("Starting %i subprocesses", processes)
-    for p in range(processes):
+    # don't start subprocesses if we can't
+    run_local = processes == 1 and no_dev_shm
+
+    for p in range(processes - run_local):
         pp = multiprocessing.Process(target=execute_task_threads, args=(queues, threads_per_process, 1, module))
         pp.daemon = True
         pp.start()
         sp.append(pp)
+
+    if run_local:
+        # can't run multiprocessing, because we have no /dev/shm :(
+        sp.append(threading.Thread(target=execute_task_threads, args=(queues, threads_per_process, 1, module)))
+        sp[-1].daemon = 1
+        sp[-1].start()
+
     last = {}
     while not SHOULD_QUIT[0]:
         _handle_delayed(get_connection(), queues, 1)
