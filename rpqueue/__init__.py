@@ -214,7 +214,8 @@ POOL = None
 
 LOG_LEVELS = dict((v, getattr(logging, v)) for v in ['DEBUG', 'INFO', 'WARNING', 'ERROR'])
 LOG_LEVEL = 'debug'
-logging.basicConfig()
+FORMAT = '%(levelname)s:%(name)s:%(process)s:%(threadName)s:%(message)s'
+logging.basicConfig(format=FORMAT)
 log_handler = logging.root
 
 SUCCESS_LOG_LEVEL = 'debug'
