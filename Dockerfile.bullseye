@@ -1,0 +1,20 @@
+ARG PYTHON_VERSION="3.11"
+
+FROM python:${PYTHON_VERSION}-bullseye
+ARG PYTHON_VERSION
+ARG PY="python${PYTHON_VERSION}"
+
+WORKDIR /app
+
+RUN $PY -m pip install --upgrade pip
+COPY requirements.txt .
+
+RUN $PY -m pip install -r requirements.txt
+
+# need rpqueue
+COPY rpqueue/*.py rpqueue/
+# and need the tests too
+COPY tests/* rpqueue_tests/
+
+# Note: needs access to Valkey
+CMD $PY -m rpqueue_tests.test_rpqueue

@@ -1,6 +1,5 @@
-FILES=`ls docker-compose.*.yaml`
-GET_TARGET=grep rpqueue-test docker-compose.$${target}.yaml | sed 's/[ :]//g'
-COMPOSE_PREFIX=docker-compose -f docker-compose.
+GET_TARGET=grep rpqueue-test-$${target} docker-compose.yaml | sed 's/[ :]//g'
+COMPOSE_PREFIX=docker-compose -f docker-compose
 
 # sphinx options
 SHELL=/bin/bash
@@ -20,37 +19,24 @@ I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS)
 
 .PHONY: clean docs testall
 
-clean:
+clean: perms
 	-rm -f *.pyc rpqueue/*.pyc README.html MANIFEST
-	-rm -rf build dist
+	-rm -rf build
 
-install:
-	python setup.py install
+perms:
+	-sudo chown ${USER}:${USER} -R .
 
 compose-build-all:
-	echo ${FILES}
-	# A little nasty here, but we can do it!
-	# The grep finds the 'rpqueue-test-<service version>' in the .yaml
-	# The sed removes extra spaces and colons
-	# Which we pass into our rebuild
-	for target in ${FILES} ; do \
-		docker-compose -f $${target} build -- `${GET_TARGET}` redis-task-broker; \
-	done
-
-compose-build-%:
-	for target in $(patsubst compose-build-%,%,$@) ; do \
-		${COMPOSE_PREFIX}$${target}.yaml build `${GET_TARGET}`; \
-	done
-
+	docker-compose build
 
 compose-up-%:
 	for target in $(patsubst compose-up-%,%,$@) ; do \
-		${COMPOSE_PREFIX}$${target}.yaml up --remove-orphans `${GET_TARGET}`; \
+		${COMPOSE_PREFIX}.yaml up --remove-orphans `${GET_TARGET}`; \
 	done
 
 compose-down-%:
 	for target in $(patsubst compose-down-%,%,$@) ; do \
-		echo ${COMPOSE_PREFIX}$${target}.yaml down `${GET_TARGET}`; \
+		echo ${COMPOSE_PREFIX}.yaml down `${GET_TARGET}`; \
 	done
 
 testall:
@@ -61,19 +47,21 @@ testall:
 test-%:
 	# the test container runs the tests on up, then does an exit 0 when done
 	for target in $(patsubst test-%,%,$@) ; do \
-		make compose-build-$${target} && make compose-up-$${target}; \
+		make compose-up-$${target}; \
 	done
 
 upload:
 	git tag `cat VERSION`
 	git push origin --tags
-	python3.6 setup.py sdist
-	python3.6 -m twine upload --verbose dist/rpqueue-`cat VERSION`.tar.gz
+	docker-compose run --rm -w /source rpqueue-uploader python3.13 -m build --sdist
+	docker-compose run --rm -w /source rpqueue-uploader python3.13 -m twine upload --skip-existing dist/rpqueue-`cat VERSION`.tar.gz
+	make perms
 
 docs:
-	python -c "import rpqueue; open('VERSION', 'w').write(rpqueue.VERSION);"
-	make compose-build-docs
-	docker-compose -f docker-compose.docs.yaml run rpqueue-test-docs $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	python3 -c "import rpqueue; open('VERSION', 'w').write(rpqueue.VERSION);"
+	docker-compose build rpqueue-uploader
+	docker-compose run --rm -w /source rpqueue-uploader $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	make perms
 	cp -r $(BUILDDIR)/html/. docs
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

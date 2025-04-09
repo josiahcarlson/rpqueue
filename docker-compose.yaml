@@ -1,0 +1,183 @@
+version: '3.3'
+services:
+  valkey-task-broker:
+    image: valkey/valkey:7-bookworm
+    restart: "no"
+    ports:
+      - "6379:6379"
+    command: valkey-server --save ""
+    networks:
+      - rpqueue
+  rpqueue-uploader:
+    build:
+      context: .
+      dockerfile: Dockerfile.uploader
+      args:
+        PYTHON_VERSION: "3.13"
+    environment:
+      PYTHONPATH: /app
+      PY: python3.13
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+    volumes:
+      - ./:/source/:rw
+      - ~/.pypirc/:/root/.pypirc/:ro
+  rpqueue-test-3-13:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.13"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-12:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.12"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-11:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.11"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-10:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.10"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-9:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.9"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-8:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.8"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-7:
+    build:
+      context: .
+      dockerfile: Dockerfile.bullseye
+      args:
+        PYTHON_VERSION: "3.7"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-6:
+    build:
+      context: .
+      dockerfile: Dockerfile.generic
+      args:
+        PYTHON_VERSION: "3.6"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-5:
+    build:
+      context: .
+      dockerfile: Dockerfile.generic
+      args:
+        PYTHON_VERSION: "3.5"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+  rpqueue-test-3-4:
+    build:
+      context: .
+      dockerfile: Dockerfile.generic
+      args:
+        PYTHON_VERSION: "3.4"
+    environment:
+      REDIS_HOST: valkey-task-broker
+      REDIS_PORT: 6379
+      REDIS_DB: 15
+      PYTHONPATH: /app
+    links:
+      - valkey-task-broker
+    networks:
+      - rpqueue
+
+networks:
+  rpqueue:
+    external: false

@@ -1,25 +1,26 @@
-
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Description &#8212; RPQueue 0.33.5 documentation</title>
-    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
+    <title>Description &#8212; RPQueue 0.33.6 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=5a649748"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Description" href="README.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
+
   
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+  
 
   </head><body>
   
@@ -57,12 +58,12 @@
 </ul>
 </div>
 <ul class="simple">
-<li><p><a class="reference internal" href="#module-rpqueue" title="rpqueue"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">rpqueue</span></code></a></p></li>
+<li><p><code class="xref any docutils literal notranslate"><span class="pre">rpqueue</span></code></p></li>
 </ul>
 <p>Documentation for version:</p>
-<p>0.33.5</p>
+<p>0.33.6</p>
 <section id="description">
-<h1>Description<a class="headerlink" href="#description" title="Permalink to this heading">¶</a></h1>
+<h1>Description<a class="headerlink" href="#description" title="Link to this heading">¶</a></h1>
 <p>This package intends to offer a priority-based remote task queue solution
 using Redis as the transport and persistence layer, and JSON for a common
 interchange format.</p>
@@ -77,12 +78,12 @@ complete, it will be retried up to the limit of retries provided.</p>
 <p>Full documentation is available: <a class="reference external" href="https://josiahcarlson.github.io/rpqueue/">https://josiahcarlson.github.io/rpqueue/</a></p>
 </section>
 <section id="getting-started">
-<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h1>
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h1>
 <p>In order to execute tasks, you must ensure that rpqueue knows about your
 tasks that can be executed, you must configure rpqueue to connect to your
 Redis server, then you must start the task execution daemon:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mytasks</span> <span class="kn">import</span> <span class="n">usertasks1</span><span class="p">,</span> <span class="n">usertasks2</span><span class="p">,</span> <span class="o">...</span>
-<span class="kn">import</span> <span class="nn">rpqueue</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mytasks</span><span class="w"> </span><span class="kn">import</span> <span class="n">usertasks1</span><span class="p">,</span> <span class="n">usertasks2</span><span class="p">,</span> <span class="o">...</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rpqueue</span>
 
 <span class="n">rpqueue</span><span class="o">.</span><span class="n">set_redis_connection_settings</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span>
 <span class="n">rpqueue</span><span class="o">.</span><span class="n">execute_tasks</span><span class="p">()</span>
@@ -92,7 +93,7 @@ Redis server, then you must start the task execution daemon:</p>
 you must provide the name of a module or package that imports all modules or
 packages that define tasks that you want to run. For example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># tasks.py</span>
-<span class="kn">from</span> <span class="nn">tasks</span> <span class="kn">import</span> <span class="n">accounting</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">,</span> <span class="o">...</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tasks</span><span class="w"> </span><span class="kn">import</span> <span class="n">accounting</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">,</span> <span class="o">...</span>
 <span class="c1"># any other imports or configuration necessary, put them here</span>
 
 <span class="c1"># run from the command-line</span>
@@ -101,13 +102,13 @@ packages that define tasks that you want to run. For example:</p>
 </div>
 </section>
 <section id="example-uses">
-<h1>Example uses<a class="headerlink" href="#example-uses" title="Permalink to this heading">¶</a></h1>
+<h1>Example uses<a class="headerlink" href="#example-uses" title="Link to this heading">¶</a></h1>
 <p>Say that you have a module <code class="docutils literal notranslate"><span class="pre">usertasks1</span></code> with a task to be executed called
 <code class="docutils literal notranslate"><span class="pre">echo_to_stdout</span></code>. Your module may look like the following:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rpqueue</span> <span class="kn">import</span> <span class="n">task</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">rpqueue</span><span class="w"> </span><span class="kn">import</span> <span class="n">task</span>
 
 <span class="nd">@task</span>
-<span class="k">def</span> <span class="nf">echo_to_stdout</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">echo_to_stdout</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -119,19 +120,19 @@ packages that define tasks that you want to run. For example:</p>
 <p>You can also schedule a task to be repeatedly executed with the
 <code class="docutils literal notranslate"><span class="pre">periodic_task</span></code> decorator:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@periodic_task</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s2">&quot;low&quot;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function1</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">function1</span><span class="p">():</span>
     <span class="c1"># Will be executed every 25 seconds from within the &#39;low&#39; queue.</span>
     <span class="k">pass</span>
 </pre></div>
 </div>
 </section>
 <section id="retries">
-<h1>Retries<a class="headerlink" href="#retries" title="Permalink to this heading">¶</a></h1>
+<h1>Retries<a class="headerlink" href="#retries" title="Link to this heading">¶</a></h1>
 <p>Tasks may be provided an optional <code class="docutils literal notranslate"><span class="pre">attempts</span></code> argument, which specifies the
 total number of times the task will try to be executed before failing. By
 default, all tasks have <code class="docutils literal notranslate"><span class="pre">attempts</span></code> set at 1, unless otherwise specified:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">fail_until_zero</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fail_until_zero</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">value</span> <span class="o">-=</span> <span class="mi">1</span>
@@ -148,13 +149,13 @@ attempts=2, and fails. The third pass has value=1, attempts=1, fails, and the
 retry returns without retrying. The <code class="docutils literal notranslate"><span class="pre">attempts</span></code> value is the total number of
 attempts, including the first, and all retries.</p>
 <section id="automatic-retries-with-vis-timeout">
-<h2>Automatic retries with vis_timeout<a class="headerlink" href="#automatic-retries-with-vis-timeout" title="Permalink to this heading">¶</a></h2>
+<h2>Automatic retries with vis_timeout<a class="headerlink" href="#automatic-retries-with-vis-timeout" title="Link to this heading">¶</a></h2>
 <p>Included with rpqueue 0.30.0 or later, you can give tasks (and now data queues)
 a visibility timeout, which is (per Amazon SQS-style semantics) a time for how
 long the task has to execute correctly before being automatically re-entered
 into the queue.:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">usually_eventually_succeed</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">usually_eventually_succeed</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="c1"># (4/5)**20  is ~ 0.0115, so call chain fails about 1% of the time</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;done!&quot;</span>
@@ -164,11 +165,11 @@ into the queue.:</p>
 </div>
 </section>
 <section id="deadletter-task-queue">
-<h2>Deadletter task queue<a class="headerlink" href="#deadletter-task-queue" title="Permalink to this heading">¶</a></h2>
+<h2>Deadletter task queue<a class="headerlink" href="#deadletter-task-queue" title="Link to this heading">¶</a></h2>
 <p>If you would like to know which tasks failed, failed calls can be automatically
 entered into a deadletter queue.:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@rpqueue</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">fails_to_dead</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fails_to_dead</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="c1"># (4/5)**5  is 0.32768, so call chain fails about 33% of the time</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;done!&quot;</span>
@@ -183,11 +184,11 @@ entered into a deadletter queue.:</p>
 </section>
 </section>
 <section id="waiting-for-task-execution">
-<h1>Waiting for task execution<a class="headerlink" href="#waiting-for-task-execution" title="Permalink to this heading">¶</a></h1>
+<h1>Waiting for task execution<a class="headerlink" href="#waiting-for-task-execution" title="Link to this heading">¶</a></h1>
 <p>As of version .19, RPQueue offers the ability to wait on a task until it
 begins execution:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span>
-<span class="k">def</span> <span class="nf">my_task</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">my_task</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
     <span class="c1"># do something</span>
 
 <span class="n">executing_task</span> <span class="o">=</span> <span class="n">my_task</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
@@ -202,11 +203,11 @@ add deadlines by inserting a call to <code class="docutils literal notranslate">
 block above.</p>
 </section>
 <section id="automatically-storing-results-of-tasks">
-<h1>Automatically storing results of tasks<a class="headerlink" href="#automatically-storing-results-of-tasks" title="Permalink to this heading">¶</a></h1>
+<h1>Automatically storing results of tasks<a class="headerlink" href="#automatically-storing-results-of-tasks" title="Link to this heading">¶</a></h1>
 <p>As of version .19, RPQueue offers the ability to store the result returned by
 a task as it completes:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">save_results</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">task_with_results</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">task_with_results</span><span class="p">():</span>
     <span class="k">return</span> <span class="mi">5</span>
 
 <span class="n">etask</span> <span class="o">=</span> <span class="n">task_with_results</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
@@ -219,20 +220,20 @@ cron tasks (described below). The value passed will be how long the result is
 stored in Redis, in seconds. All results must be json-encodable.</p>
 </section>
 <section id="additional-features">
-<h1>Additional features<a class="headerlink" href="#additional-features" title="Permalink to this heading">¶</a></h1>
+<h1>Additional features<a class="headerlink" href="#additional-features" title="Link to this heading">¶</a></h1>
 <section id="crontab">
-<h2>Crontab<a class="headerlink" href="#crontab" title="Permalink to this heading">¶</a></h2>
+<h2>Crontab<a class="headerlink" href="#crontab" title="Link to this heading">¶</a></h2>
 <p>Support for cron_tasks using a crontab-like syntax requires the Python crontab
 module: <a class="reference external" href="http://pypi.python.org/pypi/crontab/">http://pypi.python.org/pypi/crontab/</a> , allowing for:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@cron_task</span><span class="p">(</span><span class="s1">&#39;0 5 tue * *&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function2</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">function2</span><span class="p">():</span>
     <span class="c1"># Will be executed every Tuesday at 5AM.</span>
     <span class="k">pass</span>
 </pre></div>
 </div>
 </section>
 <section id="data-queues">
-<h2>Data queues<a class="headerlink" href="#data-queues" title="Permalink to this heading">¶</a></h2>
+<h2>Data queues<a class="headerlink" href="#data-queues" title="Link to this heading">¶</a></h2>
 <p>Put data in queues, not tasks. I mean, should have probably been here from the
 start, but it’s here now.</p>
 <dl class="simple">
@@ -279,7 +280,7 @@ start, but it’s here now.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">aggregate_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;aggregate_stats&quot;</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 <span class="nd">@rpqueue</span><span class="o">.</span><span class="n">periodic_task</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">aggregate</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">aggregate</span><span class="p">():</span>
     <span class="c1"># If vis_timeout is not provided, will use the queue default.</span>
     <span class="c1"># If vis_timeout is &lt;= 0, will act as a 0/1 queue, and later &quot;done data&quot;</span>
     <span class="c1"># calling is unnecessary.</span>
@@ -305,7 +306,7 @@ start, but it’s here now.</p>
 </section>
 </section>
 <section id="sponsors">
-<h1>Sponsors<a class="headerlink" href="#sponsors" title="Permalink to this heading">¶</a></h1>
+<h1>Sponsors<a class="headerlink" href="#sponsors" title="Link to this heading">¶</a></h1>
 <p>Don’t like LGPL? Sponsor the project and get almost any license you want.</p>
 <p>This project has been partly sponsored by structd.com and hCaptcha.com, both of
 whom received licenses that match their needs appropriately. Historically,
@@ -315,500 +316,8 @@ captchas for hCaptcha.com.</p>
 <p>Thank you to our sponsors and those who have consumed our services.</p>
 <p>You are welcome for the good service.</p>
 <p>Your company link here.</p>
-<section id="module-rpqueue">
-<span id="rpqueue-module-contents"></span><h2>Rpqueue module contents<a class="headerlink" href="#module-rpqueue" title="Permalink to this heading">¶</a></h2>
-<p>rpqueue (Redis Priority Queue)</p>
-<p>Originally written July 5, 2011
-Copyright 2011-2022 Josiah Carlson
-Released under the GNU LGPL v2.1
-available: <a class="reference external" href="http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html</a></p>
-<p>Other licenses may be available upon request.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="rpqueue.Data">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">Data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_dead</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_tasks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_dead</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data" title="Permalink to this definition">¶</a></dt>
-<dd><p>An object that represents an abstract data queue with 0/1 or 1+ removal
-semantics. Internally works much the same way as tasks, just different keys,
-and no explicit associated task.</p>
-<p>For named queues with arbitrary names, with / without default timeouts and
-deadletter queues:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># 0/1 with no retries is the default behavior</span>
-<span class="n">data_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;queue_name&quot;</span><span class="p">)</span>
-
-<span class="c1"># 0/1 or 1+ queue, with up to 5 times visible, visibility controlled by</span>
-<span class="c1"># the receiver, no deadletter queue</span>
-<span class="n">data_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;queue_name&quot;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
-<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span> <span class="c1"># 0/1 queue</span>
-<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># 1+ queue with vis_timeout &gt; 0</span>
-
-<span class="c1"># 0/1 or 1+ queue with default visibility timeout, and automatic</span>
-<span class="c1"># deadletter queue insertion on failure with 1+ queue operation</span>
-<span class="n">data_queue</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s2">&quot;queue_name&quot;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">use_dead</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">vis_timeout</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="c1"># 0/1 queue</span>
-<span class="n">data_queue</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">vis_timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="c1"># 1+ queue with vis_timeout &gt; 0</span>
-</pre></div>
-</div>
-<p>If you find that you need access to the various deadletter queues (because
-you are using them and want to clean them out)…</p>
-<p>For the Data deadletter Queue:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data_dlq</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="n">rpqueue</span><span class="o">.</span><span class="n">DEADLETTER_QUEUE</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>For the Tasks deadletter Queue, with this interface:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tasks_dlq</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="n">rpqueue</span><span class="o">.</span><span class="n">DEADLETTER_QUEUE</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>You can only pull data from these queues in a 0/1 fashion with this</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.currently_available">
-<span class="sig-name descname"><span class="pre">currently_available</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.currently_available" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the number of (available, invisible) items in the queue.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.delete_all">
-<span class="sig-name descname"><span class="pre">delete_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.delete_all" title="Permalink to this definition">¶</a></dt>
-<dd><p>Deletes all data in the queue. If you want to delete data from the
-DEADLETTER_QUEUE, you should:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Data</span><span class="p">(</span><span class="n">DEADLETTER_QUEUE</span><span class="p">)</span><span class="o">.</span><span class="n">delete_all</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>To clear out the Tasks DEADLETTER_QUEUE:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Data</span><span class="p">(</span><span class="n">DEADLETTER_QUEUE</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">delete_all</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>For all other queues:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Data</span><span class="p">(</span><span class="o">&lt;</span><span class="n">name</span><span class="o">&gt;</span><span class="p">,</span> <span class="n">is_tasks</span><span class="o">=&lt;</span><span class="n">true</span> <span class="ow">or</span> <span class="n">false</span><span class="o">&gt;</span><span class="p">)</span><span class="o">.</span><span class="n">delete_all</span><span class="p">()</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.done_data">
-<span class="sig-name descname"><span class="pre">done_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.done_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Call when you are done with data that has a visibility timeout &gt; 0.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.get_data">
-<span class="sig-name descname"><span class="pre">get_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.get_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Gets 1-1000 data items from the queue.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">items</span></code> - number of items to get from the queue, 1 to 1000</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">vis_timeout</span></code></p>
-<ul>
-<li><p>If 0 or None, will pull items in 0/1 fashion.</p></li>
-<li><p>If &gt;0, will pull items in a 1+ fashion with the visibility timeout as provided (you must call <code class="docutils literal notranslate"><span class="pre">done_data(items)</span></code> to ‘finish’ with queue items, or <cite>refresh_data(items, vis_timeout)</cite> to refresh the visibility timeout on certain tasks)</p></li>
-<li><p>If &lt;0, will peek items in the queue without pulling them</p></li>
-</ul>
-</li>
-<li><p><cite>get_timeout</cite> - how long to wait for at least 1 item</p></li>
-</ul>
-</div></blockquote>
-<p>Note: if you are using the DEADLETTER_QUEUE, all item removals are 0/1</p>
-<p>If this is a data queue, will return:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">data_item</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">data_item</span><span class="o">&gt;</span><span class="p">}</span>
-</pre></div>
-</div>
-<p>If this is a data deadletter queue, will return:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">your</span> <span class="n">data</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">extra</span> <span class="n">fields</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">insert</span> <span class="n">time</span><span class="o">&gt;</span><span class="p">],</span> <span class="o">...</span><span class="p">}</span>
-</pre></div>
-</div>
-<p>If this is a task queue or task deadletter queue, will return:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">uuid</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">task_function_name</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">args</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">kwargs</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">scheduled</span> <span class="n">time</span><span class="o">&gt;</span><span class="p">],</span> <span class="o">...</span><span class="p">}</span>
-<span class="c1"># to access the function by &lt;task_function_name&gt;, see: rpqueue.REGISTRY</span>
-</pre></div>
-</div>
-<p>Use:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dq</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="s1">&#39;queue_name&#39;</span><span class="p">,</span> <span class="n">attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">inserted</span> <span class="o">=</span> <span class="n">dq</span><span class="o">.</span><span class="n">put_data</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])</span>
-<span class="n">removed</span> <span class="o">=</span> <span class="n">dq</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span> <span class="c1"># get the data with a timeout</span>
-<span class="n">dq</span><span class="o">.</span><span class="n">refresh_data</span><span class="p">(</span><span class="n">removed</span><span class="p">,</span> <span class="n">vis_timeout</span><span class="o">=</span><span class="mi">45</span><span class="p">)</span> <span class="c1"># to update / refresh the lease</span>
-<span class="n">dq</span><span class="o">.</span><span class="n">done_data</span><span class="p">(</span><span class="n">removed</span><span class="p">)</span> <span class="c1"># when done processing</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.put_data">
-<span class="sig-name descname"><span class="pre">put_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_dead</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_one</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunksize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">512</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.put_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Puts data items into the queue. Data is assumed to be a list of data
-items, each of which will be assigned a new UUID as an identifier before
-being placed into queues / mappings as necessary.</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">data</span></code> - list of json-encodable data items</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">use_dead</span></code> - if provided and true-ish, will spew attempts exceeded
-data items into data DEADLETTER_QUEUE (queue has a default, can be
-overridden here to enable on this inserted data)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">is_one</span></code> - if you provide a list to <code class="docutils literal notranslate"><span class="pre">data</span></code>, but just want that to
-be one item, you can ensure that with <code class="docutils literal notranslate"><span class="pre">is_one=True</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">chunksize</span></code> - the number of items to insert per pipeline flush</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">delay</span></code> - if &gt;0, will delay the inserted items from reading for the
-provided number of seconds, requires <code class="docutils literal notranslate"><span class="pre">vis_timeout</span></code> &gt; 0</p></li>
-</ul>
-</div></blockquote>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Data.refresh_data">
-<span class="sig-name descname"><span class="pre">refresh_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Data.refresh_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Refreshes the vis_timeout on your provided item uuids, if available.</p>
-<p>Returns: List of item uuids refreshed with the provided vis_timeout.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">EnqueuedTask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">taskid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask" title="Permalink to this definition">¶</a></dt>
-<dd><p>An object that allows for simple status checks on tasks being executed right
-now. Returned by task.execute() or call_task().</p>
-<dl class="py property">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask.args">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">args</span></span><a class="headerlink" href="#rpqueue.EnqueuedTask.args" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the arguments that were passed to this task.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask.cancel">
-<span class="sig-name descname"><span class="pre">cancel</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask.cancel" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cancel the task, if it has not been executed yet.</p>
-<p>Returns True if the cancellation was successful.
-Returns False if no information about task cancellation is known.
-Returns -1 if the task executed, saved a result, and the result was
-deleted.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask.result">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">result</span></span><a class="headerlink" href="#rpqueue.EnqueuedTask.result" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the value returned by the task. Requires task.save_results &gt; 0.</p>
-<p>See :py:function:<code class="docutils literal notranslate"><span class="pre">result(taskid)</span></code></p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask.status">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">status</span></span><a class="headerlink" href="#rpqueue.EnqueuedTask.status" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the status of this task.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.EnqueuedTask.wait">
-<span class="sig-name descname"><span class="pre">wait</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.EnqueuedTask.wait" title="Permalink to this definition">¶</a></dt>
-<dd><p>Will wait up to the specified timeout in seconds for the task to start
-execution, returning True if the task has at least started. Requires
-task.save_results &gt; 0, and you need to check before the results would
-have expired for consistent behavior (remember: we can’t check status on
-data that no longer exists).</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py exception">
-<dt class="sig sig-object py" id="rpqueue.NoLock">
-<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">NoLock</span></span><a class="headerlink" href="#rpqueue.NoLock" title="Permalink to this definition">¶</a></dt>
-<dd><p>Raised when a lock cannot be acquired</p>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="rpqueue.SimpleLock">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">SimpleLock</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">duration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.SimpleLock" title="Permalink to this definition">¶</a></dt>
-<dd><p>This lock is dirt simple. You shouldn’t use it for anything unless you
-want it to fail fast when the lock is already held.</p>
-<p>If Redis had a “setnxex key value ttl” that set the ‘key’ to ‘value’ if it
-wasn’t already set, and also set the expiration to ‘ttl’, this lock
-wouldn’t exist.</p>
-<p>(Redis now has this functionality, but we need to support legacy)</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.SimpleLock.refresh">
-<span class="sig-name descname"><span class="pre">refresh</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.SimpleLock.refresh" title="Permalink to this definition">¶</a></dt>
-<dd><p>Refreshes a lock</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="rpqueue.Task">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">Task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">never_skip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry_delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_delay_okay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_dead</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Task" title="Permalink to this definition">¶</a></dt>
-<dd><p>An object that represents a task to be executed. These will replace
-functions when any of the <code class="docutils literal notranslate"><span class="pre">&#64;task</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;periodic_task</span></code>, or <code class="docutils literal notranslate"><span class="pre">&#64;cron_task</span></code>
-decorators have been applied to a function.</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Task.execute">
-<span class="sig-name descname"><span class="pre">execute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Task.execute" title="Permalink to this definition">¶</a></dt>
-<dd><p>Invoke this task with the given arguments inside a task processor.</p>
-<p>Optional arguments:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><em>delay</em> - how long to delay the execution of this task for, in
-seconds</p></li>
-<li><p><em>taskid</em> - override the taskid on this call, can be used to choose
-a destination key for the results (be careful!)</p></li>
-<li><p><em>_queue</em> - override the queue to be used in this call, which can
-be used to alter priorities of individual calls when coupled with
-queue priorities</p></li>
-</ul>
-</div></blockquote>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Task.next">
-<span class="sig-name descname"><span class="pre">next</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">now</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Task.next" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates the next run time of recurring tasks.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="rpqueue.Task.retry">
-<span class="sig-name descname"><span class="pre">retry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.Task.retry" title="Permalink to this definition">¶</a></dt>
-<dd><p>Invoke this task as a retry with the given arguments inside a task
-processor.</p>
-<p>To retry, the task must accept <code class="docutils literal notranslate"><span class="pre">_attempts</span></code> as a parameter, either
-directly or via <code class="docutils literal notranslate"><span class="pre">**kwargs</span></code>.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.call_task">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">call_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.call_task" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calls a task with the given name, using the provided queue if the queue was
-otherwise not known. Returns an <code class="docutils literal notranslate"><span class="pre">EnqueuedTask</span></code>, which you can use to track
-task progress. Used via:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">t</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">call_task</span><span class="p">(</span><span class="s1">&#39;dotted.task_name&#39;</span><span class="p">,</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">QUEUE</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
-<span class="n">t</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">t</span><span class="o">.</span><span class="n">status</span>
-<span class="n">t</span><span class="o">.</span><span class="n">result</span>
-</pre></div>
-</div>
-<p>If you want to see a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> if your task is not known, pass
-<code class="docutils literal notranslate"><span class="pre">_verify_call=True</span></code> as a keyword argument.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.clear_queue">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">clear_queue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delete</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.clear_queue" title="Permalink to this definition">¶</a></dt>
-<dd><p>Delete all items in a given queue, optionally deleting the queue itself.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.cron_task">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">cron_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">crontab</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">b'default'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">never_skip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry_delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.cron_task" title="Permalink to this definition">¶</a></dt>
-<dd><p>Decorator to allow the automatic repeated execution of a function
-on a schedule with a crontab syntax. Crontab syntax provided by the
-‘crontab’ Python module: <a class="reference external" href="http://pypi.python.org/pypi/crontab/">http://pypi.python.org/pypi/crontab/</a>
-Which must also be installed to use this decorator.</p>
-<p>Similar in use to the &#64;periodic_task decorator:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@cron_task</span><span class="p">(</span><span class="s1">&#39;* * * * *&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function1</span><span class="p">():</span>
-    <span class="s1">&#39;will be executed every minute&#39;</span>
-
-<span class="nd">@cron_task</span><span class="p">(</span><span class="s1">&#39;*/5 * * * *&#39;</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="s1">&#39;bar&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function2</span><span class="p">():</span>
-    <span class="s1">&#39;will be executed every 5 minutes from within the &#39;</span><span class="n">bar</span><span class="s1">&#39; queue.&#39;</span>
-</pre></div>
-</div>
-<p>If never_skip is provided and is considered True, it will attempt to
-never skip a scheduled task, just like the &#64;periodic_task decorator.</p>
-<p>Please see the crontab package documentation or the crontab Wikipedia
-page for more information on the meaning of the schedule.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.execute_tasks">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">execute_tasks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">queues</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threads_per_process</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">processes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wait_per_thread</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">module</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.execute_tasks" title="Permalink to this definition">¶</a></dt>
-<dd><p>Will execute tasks from the (optionally) provided queues until the first
-value in the global SHOULD_QUIT is considered false.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.flush_tasks">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">flush_tasks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">complete</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_delayed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wait_on_hidden</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.flush_tasks" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wait for all tasks currently in the queue to start executing, optionally
-waiting for their completion.</p>
-<p>Returns 3 lists: <code class="docutils literal notranslate"><span class="pre">done,</span> <span class="pre">started,</span> <span class="pre">waiting</span></code>. These represent the task
-ids that are in the <code class="docutils literal notranslate"><span class="pre">done</span></code>, <code class="docutils literal notranslate"><span class="pre">started</span></code>, and <code class="docutils literal notranslate"><span class="pre">waiting</span></code> states.</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">complete</span></code> the argument is true-ish, we will wait for output / status
-returned by the task’s explicit completion before we consider the task
-complete. If not true-ish, we’ll consider a task complete if it has started
-at all (so started is empty in this case, as all are considered completed).</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">force_delayed</span></code> is true-ish, will force all delayed and periodic tasks
-to execute immediately, though we do not wait for, nor return the status of
-automatically-executed periodic tasks in our lists (only tasks explicitly
-executed with <code class="docutils literal notranslate"><span class="pre">`TASKX.execute(...)`</span></code>). Also implies <code class="docutils literal notranslate"><span class="pre">wait_on_hidden</span></code>.</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">wait_on_hidden</span></code> is true-ish, will also wait on tasks that have already
-been started, if we are waiting for completion.</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">timeout</span></code> is &gt;0, will wait up to that many seconds for the flush to
-finish. If timeout is None or &lt;0, we will wait up to 2**32 seconds. If the
-timeout expires, we will see items in waiting. If the timeout does not
-expire, and we complete without raising an exception, there should be no
-tasks in the waiting state.</p>
-<p>If <code class="docutils literal notranslate"><span class="pre">log_every</span></code> is &gt;0, will log our progress at the INFO level every
-<code class="docutils literal notranslate"><span class="pre">log_every</span></code> seconds until we are finished / timed out.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.get_task">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">get_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.get_task" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get a task dynamically by name. The task’s module must be loaded first.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.known_queues">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">known_queues</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.known_queues" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get a list of all known queues.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.new_rpqueue">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">new_rpqueue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pfix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.new_rpqueue" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a new rpqueue state for running separate rpqueue task systems in the
-same codebase. This simplifies configuration for multiple Redis servers, and
-allows for using the same Redis server without using queue names (provide a
-‘prefix’ for all RPqueue-related keys).</p>
-<p>If an rpqueue with the same name already exists, and has the same prefix,
-return that rpqueue module.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.periodic_task">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">periodic_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_every</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">b'default'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">never_skip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry_delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_delay_okay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.periodic_task" title="Permalink to this definition">¶</a></dt>
-<dd><p>Decorator to allow the automatic repeated execution of a function every
-run_every seconds, which can be provided via int, long, float, or via a
-datetime.timedelta instance. Run from the context of the given queue. Used
-via:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@periodic_task</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function1</span><span class="p">():</span>
-    <span class="s1">&#39;will be executed every 25 seconds from within the &#39;</span><span class="n">default</span><span class="s1">&#39; queue.&#39;</span>
-
-<span class="nd">@periodic_task</span><span class="p">(</span><span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">),</span> <span class="n">queue</span><span class="o">=</span><span class="s1">&#39;bar&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function2</span><span class="p">():</span>
-    <span class="s1">&#39;will be executed every 5 minutes from within the &#39;</span><span class="n">bar</span><span class="s1">&#39; queue.&#39;</span>
-</pre></div>
-</div>
-<p>If never_skip is provided and is considered True like:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@periodic_task</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="n">never_skip</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function3</span><span class="p">():</span>
-    <span class="k">pass</span>
-</pre></div>
-</div>
-<p>… and the function was scheduled to be executed at 4:15PM and 5 seconds,
-but actually executed at 4:25PM and 13 seconds, then prior to execution,
-it will be rescheduled to execute at 4:16PM and 5 seconds, which is 60
-seconds after the earlier scheduled time (it never skips a scheduled
-time). If you instead had the periodic task defined as:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@periodic_task</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="n">never_skip</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function4</span><span class="p">():</span>
-    <span class="k">pass</span>
-</pre></div>
-</div>
-<p>… and the function was scheduled to be executed at 4:15PM and 5 seconds,
-but actually executed at 4:25PM and 13 seconds, then prior to execution,
-it will be rescheduled to execute at 4:26PM and 13 seconds, which is 60
-seconds after the current time (it skips any missed scheduled time).</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.queue_sizes">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">queue_sizes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.queue_sizes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a list of all known queues, their sizes, and the number of items
-that have been seen in the queue.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.result">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">result</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.result" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the results of remotely executing tasks from one or more taskids.</p>
-<p>If a task is configured with save_results&gt;0, any remote execution of that task
-will save its return value to expire after that many seconds.</p>
-<p>These two ways of fetching the result are equivalent:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">remote</span> <span class="o">=</span> <span class="n">task</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># some concurrent logic</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">remote</span><span class="o">.</span><span class="n">result</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">taskid</span> <span class="o">=</span> <span class="n">task</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span><span class="o">.</span><span class="n">taskid</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># some concurrent logic</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">taskid</span><span class="p">)</span>
-</pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you have more than one taskid whose results you want to fetch,
-check out <code class="docutils literal notranslate"><span class="pre">rpqueue.results()</span></code> below.</p>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.results">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.results" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the results of remotely executing tasks from one or more taskids.</p>
-<p>If a task is configured with save_results&gt;0, any remote execution of that task
-will save its return value to expire after that many seconds.</p>
-<p>These two ways of fetching the result are equivalent:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">remote</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># some concurrent logic</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">result</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">remote</span><span class="p">]</span>
-
-<span class="gp">&gt;&gt;&gt; </span><span class="n">taskids</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span><span class="o">.</span><span class="n">taskid</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tasks</span><span class="p">]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="c1"># some concurrent logic</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">results</span> <span class="o">=</span> <span class="n">rpqueue</span><span class="o">.</span><span class="n">results</span><span class="p">(</span><span class="n">taskids</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.script_load">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">script_load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">script</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.script_load" title="Permalink to this definition">¶</a></dt>
-<dd><p>Borrowed and updated from my book, Redis in Action:
-<a class="reference external" href="https://github.com/josiahcarlson/redis-in-action/blob/master/python/ch11_listing_source.py">https://github.com/josiahcarlson/redis-in-action/blob/master/python/ch11_listing_source.py</a></p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.set_key_prefix">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">set_key_prefix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pfix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.set_key_prefix" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run before starting any tasks or task runners; will set the prefix on keys
-in Redis, allowing for multiple parallel rpqueue executions in the same
-Redis without worrying about queue names.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.set_priority">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">set_priority</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">queue</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qpri</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.set_priority" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the priority of a queue. Lower values means higher priorities.
-Queues with priorities come before queues without priorities.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.set_redis_connection">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">set_redis_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.set_redis_connection" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sets the global pooled connection to the provided connection object. Useful
-for environments where additional pooling or other options are desired or
-required.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.set_redis_connection_settings">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">set_redis_connection_settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">host</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6379</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">password</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">socket_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unix_socket_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ssl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ssl_ca_certs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.set_redis_connection_settings" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sets the global redis connection settings for the queue. If not called
-before use, will connect to localhost:6379 with no password and db 0.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="rpqueue.task">
-<span class="sig-prename descclassname"><span class="pre">rpqueue.</span></span><span class="sig-name descname"><span class="pre">task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry_delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis_timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_dead</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#rpqueue.task" title="Permalink to this definition">¶</a></dt>
-<dd><p>Decorator to allow the transparent execution of a function as a task.</p>
-<p>Used like:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="s1">&#39;bar&#39;</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">function1</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-    <span class="s1">&#39;will execute from within the &#39;</span><span class="n">bar</span><span class="s1">&#39; queue.&#39;</span>
-
-<span class="nd">@task</span>
-<span class="k">def</span> <span class="nf">function2</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-    <span class="s1">&#39;will execute from within the &#39;</span><span class="n">default</span><span class="s1">&#39; queue.&#39;</span>
-</pre></div>
-</div>
-</dd></dl>
-
+<section id="rpqueue-module-contents">
+<h2>Rpqueue module contents<a class="headerlink" href="#rpqueue-module-contents" title="Link to this heading">¶</a></h2>
 </section>
 </section>
 
@@ -817,7 +326,7 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
           
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper">
 <h1 class="logo"><a href="#">RPQueue</a></h1>
 
@@ -828,7 +337,16 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
 
 
 
-<h3>Navigation</h3>
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="README.html">Description</a></li>
 <li class="toctree-l1"><a class="reference internal" href="README.html#getting-started">Getting started</a></li>
@@ -848,16 +366,6 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
   </ul></li>
 </ul>
 </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script>document.getElementById('searchbox').style.display = "block"</script>
 
 
 
@@ -871,11 +379,11 @@ before use, will connect to localhost:6379 with no password and db 0.</p>
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2016, Josiah Carlson.
+      &#169;2016, Josiah Carlson.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.1.3</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
       
       |
       <a href="_sources/index.rst.txt"
