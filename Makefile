@@ -51,8 +51,8 @@ test-%:
 	done
 
 upload:
-	git tag `cat VERSION`
-	git push origin --tags
+	git tag -f `cat VERSION`
+	git push origin -f --tags
 	docker-compose run --rm -w /source rpqueue-uploader python3.13 -m build --sdist
 	docker-compose run --rm -w /source rpqueue-uploader python3.13 -m twine upload --skip-existing dist/rpqueue-`cat VERSION`.tar.gz
 	make perms
